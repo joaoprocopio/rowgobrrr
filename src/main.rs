@@ -1,6 +1,11 @@
 #![deny(clippy::all)]
 
+use std::collections::BTreeMap;
 use std::env::current_dir;
+use std::error::Error;
+use std::fs::File;
+use std::io::BufRead;
+use std::io::BufReader;
 
 /// each line inside the measurements.txt file is in the following format `<string: station_name>;<f64: measurement>`
 ///
@@ -33,12 +38,53 @@ use std::env::current_dir;
 /// let result = "{Abha=-23.0/18.0/59.2, Abidjan=-16.2/26.0/67.3, Abéché=-10.0/29.4/69.0, ...}"
 /// ```
 
-fn main() {
-    let path = current_dir()
-        .and_then(|dir| Ok(dir.join("data/measurements.txt")))
-        .unwrap();
-    dbg!(path);
-    // let measurements = File::open(path)
+type Station = String;
+type Temperature = f64;
 
-    println!("Hello, world!");
+#[derive(Debug)]
+struct Status {
+    min: Temperature,
+    mean: Temperature,
+    max: Temperature,
+    count: usize,
+}
+
+impl Default for Status {
+    fn default() -> Self {
+        Self {
+            min: Temperature::MAX,
+            mean: 0.,
+            max: Temperature::MIN,
+            count: 0,
+        }
+    }
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let mut stats = BTreeMap::<Station, Status>::new();
+
+    let reader = current_dir()
+        .and_then(|dir| Ok(dir.join("data/measurements.txt")))
+        .and_then(|dir| File::open(dir))
+        .and_then(|file| Ok(BufReader::new(file)))?;
+
+    let mut lines = reader.lines();
+
+    while let Some(Ok(line)) = lines.next() {
+        let (station, temperature) = line.split_once(";").unwrap();
+        let station: Station = station.into();
+        let temperature: Temperature = temperature.parse()?;
+
+        dbg!(&temperature);
+
+        let stat = stats.entry(station).or_insert(Status::default());
+
+        stat.max = temperature.max(stat.max);
+        stat.min = temperature.min(stat.min);
+        stat.count += 1;
+
+        dbg!(&stat);
+    }
+
+    Ok(())
 }

@@ -72,10 +72,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     while let Some(Ok(line)) = lines.next() {
         let (station, temperature) = line.split_once(";").unwrap();
+
         let station: Station = station.into();
         let temperature: Temperature = temperature.parse()?;
 
-        let stat = stats.entry(station).or_insert(Status::default());
+        let stat = stats.entry(station).or_default();
 
         stat.max = temperature.max(stat.max);
         stat.min = temperature.min(stat.min);

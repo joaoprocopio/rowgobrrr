@@ -3,16 +3,8 @@ name = "rowgobrrr"
 version = "0.1.0"
 edition = "2024"
 
-[dependencies]
-
 [profile.release]
-opt-level = 3
 debug = "full" # TODO: remove this when making production release; info useful only for debugging
 strip = "none"
-debug-assertions = false
-overflow-checks = false
 lto = "off" # TODO: this should be `true` or `"fat"`; this is only enabled for debugging purposes
-panic = "unwind"
-incremental = false
-codegen-units = 16
-rpath = false
+panic = "abort"

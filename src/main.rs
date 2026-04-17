@@ -1,8 +1,7 @@
 #![deny(clippy::all)]
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::env::current_dir;
-use std::error::Error;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
@@ -61,7 +60,7 @@ impl Default for Status {
 }
 
 fn main() {
-    let mut stats = BTreeMap::<Station, Status>::new();
+    let mut statuses = HashMap::<Station, Status>::new();
 
     let reader = current_dir()
         .and_then(|dir| Ok(dir.join("measurements.txt")))
@@ -77,19 +76,25 @@ fn main() {
         let station: Station = station.into();
         let temperature: Temperature = temperature.parse().unwrap();
 
-        let stat = stats.entry(station).or_default();
+        let status = statuses.entry(station).or_default();
 
-        stat.max = temperature.max(stat.max);
-        stat.min = temperature.min(stat.min);
-        stat.sum += temperature;
-        stat.count += 1;
+        status.max = temperature.max(status.max);
+        status.min = temperature.min(status.min);
+        status.sum += temperature;
+        status.count += 1;
     }
 
-    let mut stats = stats.into_iter().peekable();
+    let mut sorted = statuses.keys().collect::<Vec<_>>();
+
+    sorted.sort_unstable();
+
+    let mut sorted = sorted.into_iter().peekable();
 
     print!("{{");
 
-    while let Some((station, status)) = stats.next() {
+    while let Some(station) = sorted.next() {
+        let status = statuses.get(station).unwrap();
+
         print!(
             "{}={:.1}/{:.1}/{:.1}",
             station,
@@ -98,7 +103,7 @@ fn main() {
             status.max
         );
 
-        if let Some(_) = stats.peek() {
+        if let Some(_) = sorted.peek() {
             print!(", ");
         }
     }

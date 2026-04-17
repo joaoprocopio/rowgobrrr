@@ -2,31 +2,35 @@
 
 1 billion row challenge in rust.
 
-## generating measurements
+## development
+
+### generating data
+
+> to run this project you need to generate the base text file. read the [guide](1brc/README.md) here.
 
 ```sh
 cd 1brc
 ./mvnw clean verify
 ./create_measurements.sh 1000000000
-./calculate_average_baseline.sh
+./calculate_average_baseline.sh > baseline.txt
+mv measurements.txt ..
+mv baseline.txt ..
 ```
 
-## profilling
-
-tools:
+### tools used for profilling
 
 - perf linux
 - callgrind
 - valgrind
 - cachegrind
 
-build:
+### building the binary
 
 ```sh
 cargo build --release
 ```
 
-record:
+### sampling
 
 <!-- https://nnethercote.github.io/perf-book/profiling.html -->
 <!-- https://rustc-dev-guide.rust-lang.org/profiling/with-perf.html -->
@@ -35,13 +39,13 @@ record:
 perf record -F99 --call-graph dwarf ./target/release/beecrab
 ```
 
-visualize (TUI):
+### visualize perf data on a tui
 
 ```sh
 perf report
 ```
 
-visualize (GUI):
+### visualize perf data on a gui
 
 ```sh
 perf script > perf.txt

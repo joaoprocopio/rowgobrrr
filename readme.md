@@ -1,4 +1,4 @@
-# rowgobrr
+# beecrab
 
 1 billion row challenge in rust.
 
@@ -11,13 +11,19 @@ tools:
 - valgrind
 - cachegrind
 
+build:
+
+```sh
+cargo build --release
+```
+
 record:
 
 <!-- https://nnethercote.github.io/perf-book/profiling.html -->
 <!-- https://rustc-dev-guide.rust-lang.org/profiling/with-perf.html -->
 
 ```sh
-perf record -F99 --call-graph dwarf ./target/release/rowgobrrr
+perf record -F99 --call-graph dwarf ./target/release/beecrab
 ```
 
 visualize (TUI):

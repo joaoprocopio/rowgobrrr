@@ -20,10 +20,15 @@ record:
 perf record -F99 --call-graph dwarf ./target/release/rowgobrrr
 ```
 
-visualize:
+visualize (TUI):
+
+```sh
+perf report
+```
+
+visualize (GUI):
 
 ```sh
 perf script > perf.txt
+# paste the text file on: https://profiler.firefox.com/
 ```
-
-paste on: https://profiler.firefox.com/

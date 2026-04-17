@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [profile.release]
+codegen-units = 1
 debug = "full" # TODO: remove this when making production release; info useful only for debugging
 strip = "none"
-lto = "off" # TODO: this should be `true` or `"fat"`; this is only enabled for debugging purposes
+lto = "fat"
 panic = "abort"

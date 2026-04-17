@@ -8,12 +8,11 @@ edition = "2024"
 [profile.release]
 opt-level = 3
 debug = "full" # TODO: remove this when making production release; info useful only for debugging
-# split-debuginfo = '...'
 strip = "none"
 debug-assertions = false
 overflow-checks = false
-lto = false
-panic = 'unwind'
+lto = "off" # TODO: this should be `true` or `"fat"`; this is only enabled for debugging purposes
+panic = "unwind"
 incremental = false
 codegen-units = 16
 rpath = false

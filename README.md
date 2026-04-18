@@ -36,7 +36,7 @@ cargo build --release
 <!-- https://rustc-dev-guide.rust-lang.org/profiling/with-perf.html -->
 
 ```sh
-perf record -F99 --call-graph dwarf ./target/release/beecrab
+perf record -F99 --call-graph dwarf ./target/release/beecrab measurements-10k.txt
 ```
 
 ### visualize perf data on a tui

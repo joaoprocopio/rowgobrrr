@@ -2,7 +2,7 @@
 
 use libc;
 use std::collections::HashMap;
-use std::env::current_dir;
+use std::env::{args, current_dir};
 use std::fs::File;
 use std::io;
 use std::io::Write;
@@ -65,8 +65,11 @@ const NEW_LINE: u8 = b"\n"[0];
 fn main() {
     let mut statuses = HashMap::<&str, Status>::new();
 
+    let file = args()
+        .nth(1)
+        .expect("measurements file path should be provider");
     let file = current_dir()
-        .and_then(|path| path.join("measurements-10k.txt").canonicalize())
+        .and_then(|path| path.join(file).canonicalize())
         .and_then(|path| File::open(path))
         .unwrap();
 

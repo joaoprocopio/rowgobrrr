@@ -7,7 +7,6 @@ edition = "2024"
 codegen-units = 1
 debug = "full" # TODO: remove this when making production release; info useful only for debugging
 strip = "none"
-lto = "fat"
 panic = "abort"
 
 [dependencies]

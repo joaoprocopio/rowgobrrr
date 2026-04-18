@@ -64,7 +64,7 @@ const NEW_LINE: u8 = b"\n"[0];
 fn main() {
     let mut statuses = HashMap::<&str, Status>::new();
 
-    let path = current_dir().unwrap().join("measurements-10k.txt");
+    let path = current_dir().unwrap().join("measurements.txt");
     let file = File::open(path).unwrap();
 
     mmap(&file)

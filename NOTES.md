@@ -1,0 +1,3 @@
+naive: b710b6070e94110aab47036afa382dfd1f4e40ca
+btree to hashmap: 36af5fa4d9e2850f8c6ae6939b1672593f112ba6
+memory mapping: 3e10c542b35965d8fb9e99b5593cb338710e067e

@@ -1,7 +1,7 @@
 #![deny(clippy::all)]
 
+use fxhash::{FxBuildHasher, FxHashMap};
 use libc;
-use std::collections::HashMap;
 use std::env::{args, current_dir};
 use std::fs::File;
 use std::io;
@@ -9,37 +9,6 @@ use std::io::Write;
 use std::os::fd::AsRawFd;
 use std::ptr::null_mut as null_mut_ptr;
 use std::slice;
-
-/// each line inside the measurements.txt file is in the following format `<string: station_name>;<f64: measurement>`
-///
-/// where each measurement has exactly one single fractional digit
-///
-/// ```
-/// let measurements = "
-///     Hamburg;12.0
-///     Bulawayo;8.9
-///     Palembang;38.8
-///     St. John's;15.2
-///     Cracow;12.6
-///     Bridgetown;26.9
-///     Istanbul;6.2
-///     Roseau;34.4
-///     Conakry;31.2
-///     Istanbul;23.0
-/// "
-/// ```
-///
-/// the task is to read the whole file, and:
-/// - calculate the min temperature;
-/// - calculate the mean temperature;
-/// - calculate the max temperature.
-///
-/// for each weather station, and emit the result in the stdout:
-/// sorted alphabetically by station name, and the result values per station in the format `<min>/<mean>/<max>`, rounded to one fractional digit.
-///
-/// ```
-/// let result = "{Abha=-23.0/18.0/59.2, Abidjan=-16.2/26.0/67.3, Abéché=-10.0/29.4/69.0, ...}"
-/// ```
 
 #[derive(Debug)]
 struct Status {
@@ -61,9 +30,11 @@ impl Default for Status {
 }
 
 const NEW_LINE: u8 = b"\n"[0];
+const SEPARATOR: &'static str = ";";
 
 fn main() {
-    let mut statuses = HashMap::<&str, Status>::new();
+    let mut statuses =
+        FxHashMap::<&str, Status>::with_capacity_and_hasher(2048, FxBuildHasher::default());
 
     let file = args()
         .nth(1)
@@ -78,7 +49,7 @@ fn main() {
         .filter(|&byte| !byte.is_empty())
         .for_each(|line| {
             let line = unsafe { str::from_utf8_unchecked(line) };
-            let (station, temperature) = line.split_once(";").unwrap();
+            let (station, temperature) = line.split_once(SEPARATOR).unwrap();
             let temperature: f64 = temperature.parse().unwrap();
 
             let status = statuses.entry(station).or_default();
@@ -97,13 +68,13 @@ fn main() {
     let stdout = io::stdout();
     let mut writer = io::BufWriter::new(stdout.lock());
 
-    write!(&mut writer, "{{").unwrap();
+    write!(writer, "{{").unwrap();
 
     while let Some(station) = sorted.next() {
         let status = statuses.get(station).unwrap();
 
         write!(
-            &mut writer,
+            writer,
             "{}={:.1}/{:.1}/{:.1}",
             station,
             status.min,
@@ -113,11 +84,11 @@ fn main() {
         .unwrap();
 
         if let Some(_) = sorted.peek() {
-            write!(&mut writer, ", ").unwrap();
+            write!(writer, ", ").unwrap();
         }
     }
 
-    write!(&mut writer, "}}").unwrap();
+    write!(writer, "}}").unwrap();
 }
 
 fn mmap(file: &File) -> &[u8] {
@@ -141,12 +112,8 @@ fn mmap(file: &File) -> &[u8] {
             panic!("{:?}", io::Error::last_os_error());
         }
 
-        if libc::madvise(ptr, len, libc::MADV_HUGEPAGE) != 0 {
-            panic!("{:?}", io::Error::last_os_error());
-        }
-
         slice::from_raw_parts(ptr as *const u8, len as usize)
     }
-}
 
-// TODO: maybe munmap? it's needed if we're just shutting down the program?
+    // TODO: maybe munmap? it's needed if we're just shutting down the program?
+}

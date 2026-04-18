@@ -1,10 +1,10 @@
 #![deny(clippy::all)]
 
-use libc::{self, PROT_READ};
+use libc;
 use std::collections::HashMap;
 use std::env::current_dir;
 use std::fs::File;
-use std::io::{self, BufRead};
+use std::io;
 use std::os::fd::AsRawFd;
 use std::ptr::null_mut as null_mut_ptr;
 use std::slice;
@@ -40,80 +40,84 @@ use std::slice;
 /// let result = "{Abha=-23.0/18.0/59.2, Abidjan=-16.2/26.0/67.3, Abéché=-10.0/29.4/69.0, ...}"
 /// ```
 
-type Station = String;
-type Temperature = f64;
-
 #[derive(Debug)]
 struct Status {
-    min: Temperature,
-    max: Temperature,
-    sum: Temperature,
+    min: f64,
+    max: f64,
+    sum: f64,
     count: usize,
 }
 
 impl Default for Status {
     fn default() -> Self {
         Self {
-            min: Temperature::MAX,
-            max: Temperature::MIN,
+            min: f64::MAX,
+            max: f64::MIN,
             sum: 0.,
             count: 0,
         }
     }
 }
 
+const NEW_LINE: u8 = b"\n"[0];
+
 fn main() {
-    // let mut statuses = HashMap::<Station, Status>::new();
+    let mut statuses = HashMap::<&str, Status>::new();
 
-    let path = current_dir().unwrap().join("measurements-10k.txt");
+    let path = current_dir().unwrap().join("measurements.txt");
     let file = File::open(path).unwrap();
-    let map = mmap(&file);
+    let bytes = mmap(&file);
 
-    let res = unsafe { str::from_utf8_unchecked(map) };
+    let mut index = 0;
+    let mut prev = 0;
 
-    println!("{}", res);
+    for byte in bytes {
+        if byte != &NEW_LINE {
+            index += 1;
+            continue;
+        }
 
-    // let mut lines = reader.lines();
+        let line = unsafe { str::from_utf8_unchecked(&bytes[prev..index]) };
 
-    // while let Some(Ok(line)) = lines.next() {
-    //     let (station, temperature) = line.split_once(";").unwrap();
+        let (station, temperature) = line.split_once(";").unwrap();
+        let temperature: f64 = temperature.parse().unwrap();
 
-    //     let station: Station = station.into();
-    //     let temperature: Temperature = temperature.parse().unwrap();
+        let status = statuses.entry(station).or_default();
 
-    //     let status = statuses.entry(station).or_default();
+        status.max = temperature.max(status.max);
+        status.min = temperature.min(status.min);
+        status.sum += temperature;
+        status.count += 1;
 
-    //     status.max = temperature.max(status.max);
-    //     status.min = temperature.min(status.min);
-    //     status.sum += temperature;
-    //     status.count += 1;
-    // }
+        prev = index + 1;
+        index += 1;
+    }
 
-    // let mut sorted = statuses.keys().collect::<Vec<_>>();
+    let mut sorted = statuses.keys().collect::<Vec<_>>();
 
-    // sorted.sort_unstable();
+    sorted.sort_unstable();
 
-    // let mut sorted = sorted.into_iter().peekable();
+    let mut sorted = sorted.into_iter().peekable();
 
-    // print!("{{");
+    print!("{{");
 
-    // while let Some(station) = sorted.next() {
-    //     let status = statuses.get(station).unwrap();
+    while let Some(station) = sorted.next() {
+        let status = statuses.get(station).unwrap();
 
-    //     print!(
-    //         "{}={:.1}/{:.1}/{:.1}",
-    //         station,
-    //         status.min,
-    //         status.sum / status.count as f64,
-    //         status.max
-    //     );
+        print!(
+            "{}={:.1}/{:.1}/{:.1}",
+            station,
+            status.min,
+            status.sum / status.count as f64,
+            status.max
+        );
 
-    //     if let Some(_) = sorted.peek() {
-    //         print!(", ");
-    //     }
-    // }
+        if let Some(_) = sorted.peek() {
+            print!(", ");
+        }
+    }
 
-    // print!("}}");
+    print!("}}");
 }
 
 fn mmap(file: &File) -> &[u8] {

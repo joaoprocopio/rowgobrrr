@@ -54,7 +54,7 @@ fn main() {
 
     let map = Mmap::map(&file).unwrap();
 
-    map.split(|&byte| byte == NEW_LINE)
+    map.split(|byte| *byte == NEW_LINE)
         .filter(|byte| !byte.is_empty())
         .for_each(|line| {
             let line = unsafe { str::from_utf8_unchecked(line) };
@@ -68,12 +68,7 @@ fn main() {
                 Entry::Occupied(mut some) => {
                     some.get_mut().update(temperature);
                 }
-            }
-
-            // status.max = temperature.max(status.max);
-            // status.min = temperature.min(status.min);
-            // status.sum += temperature;
-            // status.count += 1;
+            };
         });
 
     let mut sorted = statuses.keys().collect::<Vec<_>>();

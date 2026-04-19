@@ -37,7 +37,22 @@ mod tests {
     }
 
     #[test]
-    fn find_newline() {
+    fn newline_found() {
         assert_eq!(memchr(b"foo\n", b'\n'), Some(3));
+    }
+
+    #[test]
+    fn last_byte_found() {
+        assert_eq!(memchr(b"foobarbaz", b'z'), Some(8));
+    }
+
+    #[test]
+    fn single_byte_found() {
+        assert_eq!(memchr(b"x", b'x'), Some(0));
+    }
+
+    #[test]
+    fn single_byte_not_found() {
+        assert_eq!(memchr(b"x", b'h'), None);
     }
 }

@@ -1,4 +1,3 @@
-#![deny(clippy::all)]
 #![feature(slice_split_once)]
 
 use std::collections::HashMap;
@@ -8,16 +7,18 @@ use std::fs::File;
 use std::io;
 use std::io::Write;
 
-use beecrab::core::{Status, Temperature};
+use beecrab::core::{Metrics, Temperature, TemperatureSum};
 use beecrab::mmap::Mmap;
 
-type StatusMap<'a> = HashMap<&'a [u8], Status>;
+type MetricsMap<'a> = HashMap<&'a [u8], Metrics>;
 
 const NEW_LINE: u8 = b'\n';
 const SEPARATOR: u8 = b';';
+// const NEGATIVE: u8 = b'-';
+// const DOT: u8 = b'.';
 
 fn main() {
-    let mut statuses = StatusMap::with_capacity(2048);
+    let mut metrics = MetricsMap::with_capacity(2048);
 
     let filename = args()
         .nth(1)
@@ -28,17 +29,18 @@ fn main() {
         .and_then(|path| File::open(path))
         .unwrap();
 
-    let map = Mmap::map(&file).unwrap();
+    let slice = Mmap::map(&file).unwrap();
 
-    map.split(|byte| *byte == NEW_LINE)
+    slice
+        .split(|byte| *byte == NEW_LINE)
         .filter(|byte| !byte.is_empty())
         .for_each(|line| {
             let (station, temperature) = line.split_once(|&byte| byte == SEPARATOR).unwrap();
-            let temperature = 1.0;
+            let temperature = parse_temperature(temperature);
 
-            match statuses.entry(station) {
+            match metrics.entry(station) {
                 Entry::Vacant(none) => {
-                    none.insert(Status::new(temperature));
+                    none.insert(Metrics::new(temperature));
                 }
                 Entry::Occupied(mut some) => {
                     some.get_mut().update(temperature);
@@ -46,11 +48,15 @@ fn main() {
             };
         });
 
-    write_results(statuses);
+    write_results(metrics);
 }
 
-fn write_results(statuses: StatusMap) {
-    let mut sorted = statuses.keys().collect::<Vec<_>>();
+fn parse_temperature<'a>(slice: &'a [u8]) -> Temperature {
+    unsafe { str::from_utf8_unchecked(slice) }.parse().unwrap()
+}
+
+fn write_results(metrics: MetricsMap) {
+    let mut sorted = metrics.keys().collect::<Vec<_>>();
     sorted.sort_unstable();
 
     let mut sorted = sorted.into_iter().peekable();
@@ -61,7 +67,7 @@ fn write_results(statuses: StatusMap) {
     write!(writer, "{{").unwrap();
 
     while let Some(station) = sorted.next() {
-        let status = statuses.get(station).unwrap();
+        let status = metrics.get(station).unwrap();
         let station = unsafe { str::from_utf8_unchecked(station) };
 
         write!(
@@ -69,7 +75,7 @@ fn write_results(statuses: StatusMap) {
             "{}={:.1}/{:.1}/{:.1}",
             station,
             status.min,
-            status.sum / status.count as Temperature,
+            status.sum / status.count as TemperatureSum,
             status.max
         )
         .unwrap();

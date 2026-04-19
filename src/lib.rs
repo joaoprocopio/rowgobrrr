@@ -40,23 +40,6 @@ pub fn compute_metrics<'a>(buffer: &'a [u8]) -> MetricsMap<'a> {
         }
     }
 
-    // buffer
-    //     .split(|byte| *byte == b'\n')
-    //     .filter(|byte| !byte.is_empty())
-    //     .for_each(|line| {
-    //         let (station, temperature) = line.split_once(|&byte| byte == b';').unwrap();
-    //         let temperature = parse_temperature(temperature);
-
-    //         match metrics.entry(station) {
-    //             Entry::Vacant(none) => {
-    //                 none.insert(Metrics::new(temperature));
-    //             }
-    //             Entry::Occupied(mut some) => {
-    //                 some.get_mut().update(temperature);
-    //             }
-    //         };
-    //     });
-
     metrics
 }
 

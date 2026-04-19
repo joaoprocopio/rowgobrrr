@@ -1,14 +1,17 @@
-// #![feature(portable_simd)]
-#![feature(slice_split_once)]
+#![feature(portable_simd)]
 
 use std::collections::hash_map::Entry;
 use std::env::{args, current_dir};
 use std::fs::File;
 use std::io;
 use std::io::Write;
+use std::simd::u8x32;
 
 use beecrab::core::{Metrics, MetricsMap, TemperatureSum, parse_temperature};
 use beecrab::mmap::Mmap;
+
+const SEMI: u8x32 = u8x32::splat(b';');
+const NEWL: u8x32 = u8x32::splat(b'\n');
 
 fn main() {
     let filename = args()
@@ -27,22 +30,22 @@ fn main() {
 fn compute_metrics<'a>(buffer: &'a [u8]) -> MetricsMap<'a> {
     let mut metrics = MetricsMap::with_capacity(256);
 
-    buffer
-        .split(|byte| *byte == b'\n')
-        .filter(|byte| !byte.is_empty())
-        .for_each(|line| {
-            let (station, temperature) = line.split_once(|&byte| byte == b';').unwrap();
-            let temperature = parse_temperature(temperature);
+    // buffer
+    //     .split(|byte| *byte == b'\n')
+    //     .filter(|byte| !byte.is_empty())
+    //     .for_each(|line| {
+    //         let (station, temperature) = line.split_once(|&byte| byte == b';').unwrap();
+    //         let temperature = parse_temperature(temperature);
 
-            match metrics.entry(station) {
-                Entry::Vacant(none) => {
-                    none.insert(Metrics::new(temperature));
-                }
-                Entry::Occupied(mut some) => {
-                    some.get_mut().update(temperature);
-                }
-            };
-        });
+    //         match metrics.entry(station) {
+    //             Entry::Vacant(none) => {
+    //                 none.insert(Metrics::new(temperature));
+    //             }
+    //             Entry::Occupied(mut some) => {
+    //                 some.get_mut().update(temperature);
+    //             }
+    //         };
+    //     });
 
     metrics
 }

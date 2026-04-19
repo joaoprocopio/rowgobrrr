@@ -35,14 +35,27 @@ impl Metrics {
 pub fn parse_temperature<'a>(buffer: &'a [u8]) -> Temperature {
     let len = buffer.len();
     let is_negative = buffer[0] == b'-';
-    let sign_multiplier = Temperature::from(!is_negative) * 2 - 1; // if negative -> -1; if positive -> 1
+    let sign_multiplier = Temperature::from(!is_negative) * 2 - 1;
     let start_pos = usize::from(is_negative);
-    let i1 = buffer[start_pos];
 
-    dbg!(start_pos);
-    dbg!(i1 as char);
+    let fixed = match len - start_pos {
+        3 => {
+            utf8_char_to_temperature(buffer[start_pos]) * 10
+                + utf8_char_to_temperature(buffer[start_pos + 2])
+        }
+        4 => {
+            utf8_char_to_temperature(buffer[start_pos]) * 100
+                + utf8_char_to_temperature(buffer[start_pos + 1]) * 10
+                + utf8_char_to_temperature(buffer[start_pos + 3])
+        }
+        _ => unreachable!(),
+    };
 
-    0
+    sign_multiplier * fixed
+}
+
+fn utf8_char_to_temperature(utf8_char: u8) -> Temperature {
+    Temperature::from(utf8_char - b'0')
 }
 
 #[cfg(test)]

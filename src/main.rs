@@ -63,9 +63,9 @@ fn write_metrics(metrics: MetricsMap) {
             writer,
             "{}={:.1}/{:.1}/{:.1}",
             station,
-            status.min,
-            status.sum / status.count as TemperatureSum,
-            status.max
+            status.min as f64 / 10.0,
+            (status.sum / status.count as TemperatureSum) as f64 / 10.0,
+            status.max as f64 / 10.0
         )
         .unwrap();
 

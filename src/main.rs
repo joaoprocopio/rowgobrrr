@@ -1,6 +1,7 @@
 #![deny(clippy::all)]
 
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::env::{args, current_dir};
 use std::fs::File;
 use std::io;
@@ -8,22 +9,31 @@ use std::io::Write;
 
 use beecrab::mmap::Mmap;
 
+type Temperature = f64;
+
 #[derive(Debug)]
 struct Status {
-    min: f64,
-    max: f64,
-    sum: f64,
+    min: Temperature,
+    max: Temperature,
+    sum: Temperature,
     count: usize,
 }
 
-impl Default for Status {
-    fn default() -> Self {
+impl Status {
+    fn new(temperature: Temperature) -> Self {
         Self {
-            min: f64::MAX,
-            max: f64::MIN,
-            sum: 0.,
-            count: 0,
+            max: temperature,
+            min: temperature,
+            sum: temperature,
+            count: 1,
         }
+    }
+
+    fn update(&mut self, temperature: Temperature) {
+        self.max = temperature.max(self.max);
+        self.min = temperature.min(self.min);
+        self.sum += temperature;
+        self.count += 1;
     }
 }
 
@@ -49,14 +59,21 @@ fn main() {
         .for_each(|line| {
             let line = unsafe { str::from_utf8_unchecked(line) };
             let (station, temperature) = line.split_once(SEPARATOR).unwrap();
-            let temperature: f64 = temperature.parse().unwrap();
+            let temperature: Temperature = temperature.parse().unwrap();
 
-            let status = statuses.entry(station).or_default();
+            match statuses.entry(station) {
+                Entry::Vacant(none) => {
+                    none.insert(Status::new(temperature));
+                }
+                Entry::Occupied(mut some) => {
+                    some.get_mut().update(temperature);
+                }
+            }
 
-            status.max = temperature.max(status.max);
-            status.min = temperature.min(status.min);
-            status.sum += temperature;
-            status.count += 1;
+            // status.max = temperature.max(status.max);
+            // status.min = temperature.min(status.min);
+            // status.sum += temperature;
+            // status.count += 1;
         });
 
     let mut sorted = statuses.keys().collect::<Vec<_>>();
@@ -77,7 +94,7 @@ fn main() {
             "{}={:.1}/{:.1}/{:.1}",
             station,
             status.min,
-            status.sum / status.count as f64,
+            status.sum / status.count as Temperature,
             status.max
         )
         .unwrap();

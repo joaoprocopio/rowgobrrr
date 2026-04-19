@@ -10,6 +10,7 @@ pub struct Mmap {
 
 impl Mmap {
     pub fn new(len: libc::size_t, fd: libc::c_int, offset: libc::off_t) -> io::Result<Self> {
+        // TODO: check if page is aligned with the OS
         let ptr = unsafe {
             // TODO: when the code is running on parallel, flags should be configured
             let ptr = libc::mmap(

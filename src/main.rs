@@ -5,6 +5,7 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::io::{Write, stdout};
 use std::os::fd::AsRawFd;
+use std::simd::cmp::SimdPartialEq;
 use std::simd::u8x32;
 
 use beecrab::core::{MetricsMap, TemperatureSum};
@@ -28,26 +29,17 @@ fn main() {
 fn compute_metrics<'a>(buffer: &'a [u8]) -> MetricsMap<'a> {
     let mut metrics = MetricsMap::with_capacity(512);
 
-    // let semi = u8x32::splat(b';');
-    // let newl = u8x32::splat(b'\n');
+    let semi = u8x32::splat(b';');
+    let newl = u8x32::splat(b'\n');
 
     // TODO: process the remainder
     let (chunks, _remainder) = buffer.as_chunks::<32>();
 
     for chunk in chunks {
         let chunk = u8x32::from_slice(chunk);
-        // let semi_eq = chunk.simd_eq(semi);
-
-        // println!("{:?}", semi_eq.to_array());
-        // println!("{:?}", semi_eq.to_bitmask());
+        let semimsk = chunk.simd_eq(semi);
+        let newlmsk = chunk.simd_eq(newl);
     }
-
-    // for chunk in buffer.chunks(32) {
-
-    //     let chunk = u8x32::from_slice(buffer);
-    //     let semimask = chunk.simd_eq(semi);
-    //     let newlmask = chunk.simd_eq(newl);
-    // }
 
     // buffer
     //     .split(|byte| *byte == b'\n')

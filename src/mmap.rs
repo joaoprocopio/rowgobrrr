@@ -9,29 +9,35 @@ pub struct Mmap {
 }
 
 impl Mmap {
-    pub fn new(len: libc::size_t, fd: libc::c_int, offset: libc::off_t) -> io::Result<Self> {
+    pub fn new(
+        len: libc::size_t,
+        prot: libc::c_int,
+        flags: libc::c_int,
+        fd: libc::c_int,
+        offset: libc::off_t,
+    ) -> io::Result<Self> {
         // TODO: check if page is aligned with the OS
         let ptr = unsafe {
-            // TODO: when the code is running on parallel, flags should be configured
-            let ptr = libc::mmap(
-                ptr::null_mut(),
-                len,
-                libc::PROT_READ,
-                libc::MAP_PRIVATE,
-                fd,
-                offset,
-            );
+            let ptr = libc::mmap(ptr::null_mut(), len, prot, flags, fd, offset);
 
             if ptr == libc::MAP_FAILED {
                 return Err(io::Error::last_os_error());
             }
 
-            // TODO: advise with SEQUENTIAL and/or HUGE PAGES
-
             ptr
         };
 
         Ok(Self { ptr: ptr, len: len })
+    }
+
+    pub fn advise(self, advice: libc::c_int) -> io::Result<Self> {
+        let res = unsafe { libc::madvise(self.ptr, self.len, advice) };
+
+        if res == 0 {
+            Ok(self)
+        } else {
+            Err(io::Error::last_os_error())
+        }
     }
 
     pub fn as_slice(&self) -> &[u8] {

@@ -5,27 +5,25 @@ use std::collections::hash_map::Entry;
 use std::io::BufWriter;
 use std::io::{Write, stdout};
 use std::simd::cmp::SimdPartialEq;
+use std::simd::u8x64;
 
 pub mod metrics;
 pub mod mmap;
 
-const U8AVXLNS: usize = 64;
-
-type U8AVX = std::simd::Simd<u8, U8AVXLNS>;
-
-const SEMI: U8AVX = U8AVX::splat(b';');
-const NEWL: U8AVX = U8AVX::splat(b'\n');
+const LANES: usize = 64;
+const SEMI: u8x64 = u8x64::splat(b';');
+const NEWL: u8x64 = u8x64::splat(b'\n');
 
 pub fn compute_metrics(buffer: &[u8]) -> MetricsMap<'_> {
     let mut metrics = MetricsMap::with_capacity(512);
-    let (chunks, _remainder) = buffer.as_chunks::<U8AVXLNS>();
+    let (chunks, _remainder) = buffer.as_chunks::<LANES>();
 
     let mut line_start = 0;
     let mut semi_pos = None;
 
     for (index, chunk) in chunks.iter().enumerate() {
-        let cursor = index * U8AVXLNS;
-        let chunk = U8AVX::from_array(*chunk);
+        let cursor = index * LANES;
+        let chunk = u8x64::from_array(*chunk);
 
         let semi_bitmask = chunk.simd_eq(SEMI).to_bitmask();
         let newl_bitmask = chunk.simd_eq(NEWL).to_bitmask();

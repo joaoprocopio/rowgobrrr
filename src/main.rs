@@ -1,3 +1,4 @@
+use beecrab::metrics::Metrics;
 use libc;
 
 use std::env::{args, current_dir};
@@ -5,7 +6,6 @@ use std::fs::File;
 use std::os::fd::AsRawFd;
 
 use beecrab::mmap::Mmap;
-use beecrab::{compute_metrics, write_metrics};
 
 fn main() {
     let filename = args()
@@ -28,6 +28,8 @@ fn main() {
     .and_then(|map| map.advise(libc::MADV_HUGEPAGE))
     .unwrap();
 
-    let metrics = compute_metrics(map.as_slice());
-    write_metrics(metrics);
+    let mut metrics = Metrics::new();
+
+    metrics.compute(map.as_slice());
+    metrics.render().unwrap();
 }

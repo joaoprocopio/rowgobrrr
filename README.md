@@ -2,6 +2,11 @@
 
 1 billion row challenge in rust.
 
+## todo
+
+- parse the remainder bytes that doesn't fit SIMD
+- make it parallel, and process in chunks
+
 ## notes
 
 - naive: b710b6070e94110aab47036afa382dfd1f4e40ca

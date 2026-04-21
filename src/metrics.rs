@@ -78,14 +78,12 @@ impl<'a> Metrics<'a> {
                     let temperature =
                         parse_temperature(&buffer[semicolon_cursor + 1..absolute_index]);
 
-                    match self.inner.get_mut(station) {
-                        Some(value) => {
-                            value.update(temperature);
-                        }
-                        None => {
-                            self.inner.insert(station, Aggregate::new(temperature));
-                        }
-                    }
+                    self.inner
+                        .entry(station)
+                        .and_modify(|aggregate| {
+                            aggregate.update(temperature);
+                        })
+                        .or_insert_with(|| Aggregate::new(temperature));
 
                     line_start_cursor = absolute_index + 1;
                     maybe_semicolon_cursor = None;

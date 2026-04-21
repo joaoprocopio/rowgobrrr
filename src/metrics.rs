@@ -8,13 +8,13 @@ use std::simd::cmp::SimdPartialEq;
 use std::simd::u8x64;
 use std::sync::Arc;
 
-const NEWLINE: u8 = b'\n';
-const SEMICOLON: u8 = b';';
+pub const NEWLINE: u8 = b'\n';
+pub const SEMICOLON: u8 = b';';
 
-const SEMICOLON_SIMD: u8x64 = u8x64::splat(SEMICOLON);
-const NEWLINE_SIMD: u8x64 = u8x64::splat(NEWLINE);
+pub const SEMICOLON_SIMD: u8x64 = u8x64::splat(SEMICOLON);
+pub const NEWLINE_SIMD: u8x64 = u8x64::splat(NEWLINE);
 
-const SIMD_LANES: usize = 64;
+pub const SIMD_LANES: usize = 64;
 
 pub type Temperature = i16;
 pub type TemperatureCount = i64;
@@ -74,13 +74,13 @@ impl<'a> Metrics<'a> {
             .or_insert_with(|| Aggregate::new(temperature));
     }
 
-    pub fn compute(&self, buffer: &'a [u8]) {
+    pub fn compute(&self, slice: &'a [u8]) {
         let mut cursor = 0;
         let mut line_start_cursor = 0;
         let mut maybe_semicolon_cursor = None;
 
-        while cursor + SIMD_LANES < buffer.len() {
-            let chunk = u8x64::from_slice(&buffer[cursor..cursor + SIMD_LANES]);
+        while cursor + SIMD_LANES < slice.len() {
+            let chunk = u8x64::from_slice(&slice[cursor..cursor + SIMD_LANES]);
 
             let semicolon_bitmask = chunk.simd_eq(SEMICOLON_SIMD).to_bitmask();
             let newline_bitmask = chunk.simd_eq(NEWLINE_SIMD).to_bitmask();
@@ -98,9 +98,9 @@ impl<'a> Metrics<'a> {
                         .take()
                         .expect("newline must be before semicolon");
 
-                    let station = &buffer[line_start_cursor..semicolon_cursor];
+                    let station = &slice[line_start_cursor..semicolon_cursor];
                     let temperature =
-                        parse_temperature(&buffer[semicolon_cursor + 1..absolute_index]);
+                        parse_temperature(&slice[semicolon_cursor + 1..absolute_index]);
 
                     self.upsert(station, temperature);
 
@@ -114,16 +114,16 @@ impl<'a> Metrics<'a> {
             cursor += SIMD_LANES;
         }
 
-        while cursor < buffer.len() {
-            match buffer[cursor] {
+        while cursor < slice.len() {
+            match slice[cursor] {
                 SEMICOLON => maybe_semicolon_cursor = Some(cursor),
                 NEWLINE => {
                     let semicolon_cursor = maybe_semicolon_cursor
                         .take()
                         .expect("newline must be before semicolon");
 
-                    let station = &buffer[line_start_cursor..semicolon_cursor];
-                    let temperature = parse_temperature(&buffer[semicolon_cursor + 1..cursor]);
+                    let station = &slice[line_start_cursor..semicolon_cursor];
+                    let temperature = parse_temperature(&slice[semicolon_cursor + 1..cursor]);
 
                     self.upsert(station, temperature);
 
@@ -169,21 +169,21 @@ impl<'a> Metrics<'a> {
 }
 
 #[inline]
-fn parse_temperature(buffer: &[u8]) -> Temperature {
-    let len = buffer.len();
+fn parse_temperature(slice: &[u8]) -> Temperature {
+    let len = slice.len();
 
     unsafe { hint::assert_unchecked(len >= 3) };
 
-    let neg = hint::select_unpredictable(buffer[0] == b'-', true, false) as usize;
+    let neg = hint::select_unpredictable(slice[0] == b'-', true, false) as usize;
 
     // always valid; dot is at len-2, ones at len-3, frac at len-1
-    let frac = (buffer[len - 1] - b'0') as Temperature;
-    let ones = (buffer[len - 3] - b'0') as Temperature;
+    let frac = (slice[len - 1] - b'0') as Temperature;
+    let ones = (slice[len - 3] - b'0') as Temperature;
 
     // tens digit exists only when (len - neg) == 4
     // saturating_sub(4): when len==3, falls back to index 0 (safe, gets masked out)
     let has_tens = hint::select_unpredictable(len >= 4 + neg, true, false) as Temperature;
-    let tens = has_tens * buffer[len.saturating_sub(4)].wrapping_sub(b'0') as Temperature;
+    let tens = has_tens * slice[len.saturating_sub(4)].wrapping_sub(b'0') as Temperature;
 
     let val = tens * 100 + ones * 10 + frac;
 

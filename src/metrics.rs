@@ -35,8 +35,8 @@ impl Aggregate {
 }
 
 const LANES: usize = 64;
-const SEMI: u8x64 = u8x64::splat(b';');
-const NEWL: u8x64 = u8x64::splat(b'\n');
+const SEMICOLON: u8x64 = u8x64::splat(b';');
+const NEWLINE: u8x64 = u8x64::splat(b'\n');
 
 pub struct Metrics<'a> {
     aggregates: HashMap<&'a [u8], Aggregate>,
@@ -50,30 +50,32 @@ impl<'a> Metrics<'a> {
     }
 
     pub fn compute(&mut self, buffer: &'a [u8]) {
-        let (chunks, _remainder) = buffer.as_chunks::<LANES>();
+        let mut cursor = 0;
+        let mut line_start_cursor = 0;
+        let mut maybe_semicolon_cursor = None;
 
-        let mut line_start = 0;
-        let mut semi_pos = None;
+        while cursor + LANES < buffer.len() {
+            let chunk = u8x64::from_slice(&buffer[cursor..cursor + LANES]);
 
-        for (index, chunk) in chunks.iter().enumerate() {
-            let cursor = index * LANES;
-            let chunk = u8x64::from_array(*chunk);
+            let semicolon_bitmask = chunk.simd_eq(SEMICOLON).to_bitmask();
+            let newline_bitmask = chunk.simd_eq(NEWLINE).to_bitmask();
 
-            let semi_bitmask = chunk.simd_eq(SEMI).to_bitmask();
-            let newl_bitmask = chunk.simd_eq(NEWL).to_bitmask();
-
-            let mut bitmask = semi_bitmask | newl_bitmask;
+            let mut bitmask = semicolon_bitmask | newline_bitmask;
 
             while bitmask != 0 {
-                let rel = bitmask.trailing_zeros() as usize;
-                let abs = cursor + rel;
+                let relative_index = bitmask.trailing_zeros() as usize;
+                let absolute_index = cursor + relative_index;
 
-                if ((semi_bitmask >> rel) & 1) != 0 {
-                    semi_pos = Some(abs);
+                if ((semicolon_bitmask >> relative_index) & 1) != 0 {
+                    maybe_semicolon_cursor = Some(absolute_index);
                 } else {
-                    let semi = semi_pos.take().expect("newline before semicolon");
-                    let station = &buffer[line_start..semi];
-                    let temperature = parse_temperature(&buffer[semi + 1..abs]);
+                    let semicolon_cursor = maybe_semicolon_cursor
+                        .take()
+                        .expect("newline must be before semicolon");
+
+                    let station = &buffer[line_start_cursor..semicolon_cursor];
+                    let temperature =
+                        parse_temperature(&buffer[semicolon_cursor + 1..absolute_index]);
 
                     match self.aggregates.entry(station) {
                         Entry::Vacant(none) => {
@@ -84,15 +86,22 @@ impl<'a> Metrics<'a> {
                         }
                     }
 
-                    line_start = abs + 1;
-                    semi_pos = None;
+                    line_start_cursor = absolute_index + 1;
+                    maybe_semicolon_cursor = None;
                 }
 
                 bitmask &= bitmask - 1;
             }
+
+            cursor += LANES;
         }
 
-        // TODO: parse remainder
+        dbg!(cursor, line_start_cursor, maybe_semicolon_cursor);
+
+        println!(
+            "TODO: there are {} bytes remaining to parse",
+            buffer.len() - cursor
+        );
     }
 
     pub fn render(&self) -> io::Result<()> {
@@ -135,7 +144,7 @@ fn parse_temperature(buffer: &[u8]) -> Temperature {
     let neg = (buffer[0] == b'-') as usize;
     let len = buffer.len();
 
-    // Always valid — dot is at len-2, ones at len-3, frac at len-1
+    // always valid; dot is at len-2, ones at len-3, frac at len-1
     let frac = (buffer[len - 1] - b'0') as Temperature;
     let ones = (buffer[len - 3] - b'0') as Temperature;
 

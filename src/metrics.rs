@@ -33,6 +33,13 @@ impl Aggregate {
         self.sum += temperature as TemperatureCount;
         self.count += 1;
     }
+
+    pub fn merge(&mut self, other: Aggregate) {
+        self.max = self.max.max(other.max);
+        self.min = self.min.min(other.min);
+        self.sum += other.sum;
+        self.count += other.count;
+    }
 }
 
 pub struct Metrics<'a> {

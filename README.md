@@ -4,7 +4,6 @@
 
 ## todo
 
-- parse the remainder bytes that doesn't fit SIMD
 - make it parallel, and process in chunks
 
 ## notes

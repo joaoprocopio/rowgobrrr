@@ -35,10 +35,6 @@ impl Aggregate {
     }
 }
 
-const LANES: usize = 64;
-const SEMICOLON: u8x64 = u8x64::splat(b';');
-const NEWLINE: u8x64 = u8x64::splat(b'\n');
-
 pub struct Metrics<'a> {
     inner: HashMap<&'a [u8], Aggregate>,
 }
@@ -51,15 +47,23 @@ impl<'a> Metrics<'a> {
     }
 
     pub fn compute(&mut self, buffer: &'a [u8]) {
+        const NEWLINE: u8 = b'\n';
+        const SEMICOLON: u8 = b';';
+
+        const SEMICOLON_SIMD: u8x64 = u8x64::splat(SEMICOLON);
+        const NEWLINE_SIMD: u8x64 = u8x64::splat(NEWLINE);
+
+        const SIMD_LANES: usize = 64;
+
         let mut cursor = 0;
         let mut line_start_cursor = 0;
         let mut maybe_semicolon_cursor = None;
 
-        while cursor + LANES < buffer.len() {
-            let chunk = u8x64::from_slice(&buffer[cursor..cursor + LANES]);
+        while cursor + SIMD_LANES < buffer.len() {
+            let chunk = u8x64::from_slice(&buffer[cursor..cursor + SIMD_LANES]);
 
-            let semicolon_bitmask = chunk.simd_eq(SEMICOLON).to_bitmask();
-            let newline_bitmask = chunk.simd_eq(NEWLINE).to_bitmask();
+            let semicolon_bitmask = chunk.simd_eq(SEMICOLON_SIMD).to_bitmask();
+            let newline_bitmask = chunk.simd_eq(NEWLINE_SIMD).to_bitmask();
 
             let mut bitmask = semicolon_bitmask | newline_bitmask;
 
@@ -92,13 +96,37 @@ impl<'a> Metrics<'a> {
                 bitmask &= bitmask - 1;
             }
 
-            cursor += LANES;
+            cursor += SIMD_LANES;
         }
 
-        println!(
-            "TODO: there are {} bytes remaining to parse",
-            buffer.len() - cursor
-        );
+        while cursor < buffer.len() {
+            let c = buffer[cursor];
+
+            if c == SEMICOLON {
+                maybe_semicolon_cursor = Some(cursor);
+            }
+
+            if c == NEWLINE {
+                let semicolon_cursor = maybe_semicolon_cursor
+                    .take()
+                    .expect("newline must be before semicolon");
+
+                let station = &buffer[line_start_cursor..semicolon_cursor];
+                let temperature = parse_temperature(&buffer[semicolon_cursor + 1..cursor]);
+
+                self.inner
+                    .entry(station)
+                    .and_modify(|aggregate| {
+                        aggregate.update(temperature);
+                    })
+                    .or_insert_with(|| Aggregate::new(temperature));
+
+                line_start_cursor = cursor + 1;
+                maybe_semicolon_cursor = None;
+            }
+
+            cursor += 1;
+        }
     }
 
     pub fn render(self, mut writer: impl Write) -> io::Result<()> {
@@ -173,7 +201,7 @@ mod tests {
         let mut result = Vec::new();
         metrics.render(&mut result).unwrap();
 
-        assert_eq!(result, expected, "mismatch for {:?}", input_path)
+        assert_eq!(String::from_utf8(result), String::from_utf8(expected))
     }
 
     #[test]
@@ -237,7 +265,7 @@ mod tests {
     }
 
     #[test]
-    fn should_parse_temperature() {
+    fn parse_temperature_range() {
         assert_eq!(parse_temperature(b"0.0"), 0);
 
         assert_eq!(parse_temperature(b"-9.0"), -90);

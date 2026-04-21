@@ -4,9 +4,10 @@ use beecrab::mmap::Mmap;
 use libc;
 use std::env::{args, current_dir};
 use std::fs::File;
+use std::io;
 use std::ops::Range;
 use std::os::fd::AsRawFd;
-use std::{io, thread};
+use std::thread;
 
 fn main() {
     let filename = args()

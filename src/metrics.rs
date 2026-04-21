@@ -119,7 +119,7 @@ impl<'a> Metrics<'a> {
                 aggregate.max as f64 / 10.0
             )?;
 
-            if let Some(_) = stations.peek() {
+            if stations.peek().is_some() {
                 write!(writer, ", ")?;
             }
         }

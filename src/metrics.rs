@@ -104,7 +104,7 @@ impl<'a> Metrics<'a> {
 
     pub fn render(self) -> io::Result<()> {
         let stations = BTreeMap::from_iter(self.inner.into_iter());
-        let mut stations = stations.iter().peekable();
+        let mut stations = stations.into_iter().peekable();
         let mut writer = BufWriter::new(stdout().lock());
 
         write!(writer, "{{")?;

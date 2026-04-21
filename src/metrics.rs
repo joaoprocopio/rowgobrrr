@@ -1,4 +1,5 @@
 use rapidhash::{HashMapExt, RapidHashMap as HashMap};
+use std::collections::BTreeMap;
 use std::io::{self, BufWriter};
 use std::io::{Write, stdout};
 use std::simd::cmp::SimdPartialEq;
@@ -101,27 +102,21 @@ impl<'a> Metrics<'a> {
         );
     }
 
-    pub fn render(&self) -> io::Result<()> {
-        let mut stations = self.inner.keys().collect::<Vec<_>>();
-
-        stations.sort_unstable();
-
-        let mut stations = stations.into_iter().peekable();
+    pub fn render(self) -> io::Result<()> {
+        let stations = BTreeMap::from_iter(self.inner.into_iter());
+        let mut stations = stations.iter().peekable();
         let mut writer = BufWriter::new(stdout().lock());
 
         write!(writer, "{{")?;
 
-        while let Some(station) = stations.next() {
-            let status = self.inner.get(station).expect("invalid memory state");
-            let station = unsafe { str::from_utf8_unchecked(station) };
-
+        while let Some((station, aggregate)) = stations.next() {
             write!(
                 writer,
                 "{}={:.1}/{:.1}/{:.1}",
-                station,
-                status.min as f64 / 10.0,
-                (status.sum / status.count as Temperature) as f64 / 10.0,
-                status.max as f64 / 10.0
+                unsafe { str::from_utf8_unchecked(station) },
+                aggregate.min as f64 / 10.0,
+                (aggregate.sum / aggregate.count as Temperature) as f64 / 10.0,
+                aggregate.max as f64 / 10.0
             )?;
 
             if let Some(_) = stations.peek() {

@@ -29,7 +29,6 @@ fn main() {
     mmap.advise(libc::MADV_WILLNEED).unwrap();
 
     let mut metrics = Metrics::new();
-
     metrics.compute(mmap.as_slice());
     metrics.render().unwrap();
 }

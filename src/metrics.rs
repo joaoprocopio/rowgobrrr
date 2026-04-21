@@ -1,5 +1,6 @@
 use rapidhash::{HashMapExt, RapidHashMap as HashMap};
 use std::collections::BTreeMap;
+use std::hint;
 use std::io::{self, BufWriter};
 use std::io::{Write, stdout};
 use std::simd::cmp::SimdPartialEq;
@@ -133,8 +134,11 @@ impl<'a> Metrics<'a> {
 }
 
 fn parse_temperature(buffer: &[u8]) -> Temperature {
-    let neg = (buffer[0] == b'-') as usize;
     let len = buffer.len();
+
+    unsafe { hint::assert_unchecked(len >= 3) };
+
+    let neg = hint::select_unpredictable(buffer[0] == b'-', true, false) as usize;
 
     // always valid; dot is at len-2, ones at len-3, frac at len-1
     let frac = (buffer[len - 1] - b'0') as Temperature;
@@ -142,7 +146,7 @@ fn parse_temperature(buffer: &[u8]) -> Temperature {
 
     // tens digit exists only when (len - neg) == 4
     // saturating_sub(4): when len==3, falls back to index 0 (safe, gets masked out)
-    let has_tens = (len >= 4 + neg) as Temperature;
+    let has_tens = hint::select_unpredictable(len >= 4 + neg, true, false) as Temperature;
     let tens = has_tens * buffer[len.saturating_sub(4)].wrapping_sub(b'0') as Temperature;
 
     let val = tens * 100 + ones * 10 + frac;

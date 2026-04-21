@@ -1,11 +1,9 @@
 use beecrab::metrics::Metrics;
+use beecrab::mmap::Mmap;
 use libc;
-
 use std::env::{args, current_dir};
 use std::fs::File;
 use std::os::fd::AsRawFd;
-
-use beecrab::mmap::Mmap;
 
 fn main() {
     let filename = args()
@@ -17,19 +15,20 @@ fn main() {
         .unwrap();
 
     // TODO: when the code is running on parallel, flags should be configured
-    let map = Mmap::new(
+    let mmap = Mmap::new(
         file.metadata().unwrap().len() as usize,
         libc::PROT_READ,
         libc::MAP_PRIVATE,
         file.as_raw_fd(),
         0,
     )
-    .and_then(|map| map.advise(libc::MADV_SEQUENTIAL))
-    .and_then(|map| map.advise(libc::MADV_HUGEPAGE))
     .unwrap();
+
+    mmap.advise(libc::MADV_SEQUENTIAL).unwrap();
+    mmap.advise(libc::MADV_HUGEPAGE).unwrap();
 
     let mut metrics = Metrics::new();
 
-    metrics.compute(map.as_slice());
+    metrics.compute(mmap.as_slice());
     metrics.render().unwrap();
 }

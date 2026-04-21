@@ -30,11 +30,11 @@ impl Mmap {
         Ok(Self { ptr: ptr, len: len })
     }
 
-    pub fn advise(self, advice: libc::c_int) -> io::Result<Self> {
+    pub fn advise(&self, advice: libc::c_int) -> io::Result<()> {
         let res = unsafe { libc::madvise(self.ptr, self.len, advice) };
 
         if res == 0 {
-            Ok(self)
+            Ok(())
         } else {
             Err(io::Error::last_os_error())
         }

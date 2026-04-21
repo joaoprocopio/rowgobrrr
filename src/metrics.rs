@@ -96,8 +96,6 @@ impl<'a> Metrics<'a> {
             cursor += LANES;
         }
 
-        dbg!(cursor, line_start_cursor, maybe_semicolon_cursor);
-
         println!(
             "TODO: there are {} bytes remaining to parse",
             buffer.len() - cursor

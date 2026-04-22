@@ -1,6 +1,5 @@
-use dashmap::DashMap as ConcurrentHashMap;
 use rapidhash::fast::RandomState as FastHasher;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::hint;
 use std::io;
 use std::io::Write;
@@ -42,9 +41,16 @@ impl Aggregate {
         self.sum += temperature as TemperatureCount;
         self.count += 1;
     }
+
+    pub fn merge(&mut self, other: Self) {
+        self.max = other.max.max(self.max);
+        self.min = other.min.min(self.min);
+        self.sum += other.sum;
+        self.count += other.count;
+    }
 }
 
-type MetricsInner<'a> = ConcurrentHashMap<&'a [u8], Aggregate, FastHasher>;
+type MetricsInner<'a> = HashMap<&'a [u8], Aggregate, FastHasher>;
 
 pub struct Metrics<'a> {
     metrics: MetricsInner<'a>,
@@ -58,7 +64,7 @@ impl<'a> Metrics<'a> {
     }
 
     #[inline]
-    pub fn upsert(&self, station: &'a [u8], temperature: Temperature) {
+    pub fn upsert(&mut self, station: &'a [u8], temperature: Temperature) {
         self.metrics
             .entry(station)
             .and_modify(|aggregate| {
@@ -67,7 +73,20 @@ impl<'a> Metrics<'a> {
             .or_insert_with(|| Aggregate::new(temperature));
     }
 
-    pub fn compute(&self, slice: &'a [u8]) {
+    pub fn merge(&mut self, other: Self) {
+        for (station, aggregate) in other.metrics {
+            match self.metrics.entry(station) {
+                std::collections::hash_map::Entry::Occupied(mut entry) => {
+                    entry.get_mut().merge(aggregate);
+                }
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    entry.insert(aggregate);
+                }
+            }
+        }
+    }
+
+    pub fn compute(&mut self, slice: &'a [u8]) {
         let mut cursor = 0;
         let mut line_start_cursor = 0;
         let mut maybe_semicolon_cursor = None;
@@ -205,7 +224,7 @@ mod tests {
         let input = fs::read(&input_path).unwrap();
         let expected = fs::read(&assert_path).unwrap();
 
-        let metrics = Metrics::new();
+        let mut metrics = Metrics::new();
         metrics.compute(&input);
 
         let mut result = Vec::new();
@@ -276,7 +295,7 @@ mod tests {
 
     #[test]
     fn measurements_without_trailing_newline() {
-        let metrics = Metrics::new();
+        let mut metrics = Metrics::new();
         metrics.compute(b"Abhaia;12.3\nAccra;-9.9");
 
         let mut result = Vec::new();

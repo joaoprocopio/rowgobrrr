@@ -32,7 +32,7 @@ fn main() {
         .unwrap_or(1);
 
     mmap.advise(if threads > 1 {
-        libc::MADV_RANDOM
+        libc::MADV_NORMAL
     } else {
         libc::MADV_SEQUENTIAL
     })
@@ -42,16 +42,7 @@ fn main() {
 
     let buffer = mmap.as_slice();
     let ranges = chunk_ranges(buffer, threads);
-    let metrics = Metrics::new();
-
-    thread::scope(|scope| {
-        for range in ranges {
-            let slice = &buffer[range];
-            let metrics = &metrics;
-
-            scope.spawn(move || metrics.compute(slice));
-        }
-    });
+    let metrics = compute_ranges(buffer, ranges);
 
     let writer = io::BufWriter::new(io::stdout().lock());
     metrics.render(writer).unwrap();
@@ -89,6 +80,39 @@ fn chunk_ranges(buffer: &[u8], chunks: usize) -> Vec<Range<usize>> {
             (start < end).then_some(start..end)
         })
         .collect()
+}
+
+fn compute_ranges<'a>(buffer: &'a [u8], ranges: Vec<Range<usize>>) -> Metrics<'a> {
+    match ranges.len() {
+        0 => Metrics::new(),
+        1 => {
+            let mut metrics = Metrics::new();
+            metrics.compute(&buffer[ranges[0].clone()]);
+            metrics
+        }
+        _ => thread::scope(|scope| {
+            let handles: Vec<_> = ranges
+                .into_iter()
+                .map(|range| {
+                    let slice = &buffer[range];
+
+                    scope.spawn(move || {
+                        let mut metrics = Metrics::new();
+                        metrics.compute(slice);
+                        metrics
+                    })
+                })
+                .collect();
+
+            let mut metrics = Metrics::new();
+
+            for handle in handles {
+                metrics.merge(handle.join().unwrap());
+            }
+
+            metrics
+        }),
+    }
 }
 
 fn next_record_boundary(buffer: &[u8], offset: usize) -> usize {
@@ -136,16 +160,7 @@ mod tests {
     fn split_ranges_compute_in_parallel() {
         let buffer = b"alpha;1.0\nbeta;2.0\nalpha;3.0\ngamma;-4.5";
         let ranges = chunk_ranges(buffer, 3);
-        let metrics = Metrics::new();
-
-        thread::scope(|scope| {
-            for range in ranges {
-                let slice = &buffer[range];
-                let metrics = &metrics;
-
-                scope.spawn(move || metrics.compute(slice));
-            }
-        });
+        let metrics = compute_ranges(buffer, ranges);
 
         let mut result = Vec::new();
         metrics.render(&mut result).unwrap();

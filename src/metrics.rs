@@ -64,31 +64,6 @@ impl<'a> Metrics<'a> {
         }
     }
 
-    #[inline]
-    pub fn upsert_temperature(&mut self, station: &'a [u8], temperature: Temperature) {
-        match self.metrics.entry(station) {
-            Entry::Occupied(mut some) => {
-                some.get_mut().update(temperature);
-            }
-            Entry::Vacant(none) => {
-                none.insert(Aggregate::new(temperature));
-            }
-        }
-    }
-
-    pub fn merge(&mut self, other: Self) {
-        for (station, aggregate) in other.metrics {
-            match self.metrics.entry(station) {
-                Entry::Occupied(mut some) => {
-                    some.get_mut().merge(aggregate);
-                }
-                Entry::Vacant(none) => {
-                    none.insert(aggregate);
-                }
-            }
-        }
-    }
-
     pub fn compute(&mut self, slice: &'a [u8]) {
         let mut cursor = 0;
         let mut line_start_cursor = 0;
@@ -187,6 +162,39 @@ impl<'a> Metrics<'a> {
 
         Ok(())
     }
+
+    #[inline]
+    fn upsert_temperature(&mut self, station: &'a [u8], temperature: Temperature) {
+        match self.metrics.entry(station) {
+            Entry::Occupied(mut some) => {
+                some.get_mut().update(temperature);
+            }
+            Entry::Vacant(none) => {
+                none.insert(Aggregate::new(temperature));
+            }
+        }
+    }
+}
+
+impl<'a> Extend<Metrics<'a>> for Metrics<'a> {
+    fn extend<T: IntoIterator<Item = Metrics<'a>>>(&mut self, iter: T) {
+        for item in iter {
+            self.extend_one(item);
+        }
+    }
+
+    fn extend_one(&mut self, item: Metrics<'a>) {
+        for (station, aggregate) in item.metrics {
+            match self.metrics.entry(station) {
+                Entry::Occupied(mut some) => {
+                    some.get_mut().merge(aggregate);
+                }
+                Entry::Vacant(none) => {
+                    none.insert(aggregate);
+                }
+            }
+        }
+    }
 }
 
 #[inline]
@@ -213,9 +221,8 @@ fn parse_temperature(slice: &[u8]) -> Temperature {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::PathBuf};
-
     use super::*;
+    use std::{fs, path::PathBuf};
 
     fn measure(filename: &str) {
         let input_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))

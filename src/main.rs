@@ -52,11 +52,7 @@ fn main() {
             .collect();
 
         let mut metrics = Metrics::new();
-
-        for handle in handles {
-            metrics.merge(handle.join().unwrap());
-        }
-
+        metrics.extend(handles.into_iter().map(|handle| handle.join().unwrap()));
         metrics
     });
 

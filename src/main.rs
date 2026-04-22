@@ -38,14 +38,12 @@ fn main() {
             .map(|threads| threads.get())
             .unwrap_or(1);
 
-        let handles: Vec<_> = chunk_ranges(buffer, threads)
+        let handles: Vec<_> = chunks(buffer, threads)
             .into_iter()
             .map(|range| {
-                let slice = &buffer[range];
-
                 scope.spawn(move || {
                     let mut metrics = Metrics::new();
-                    metrics.compute(slice);
+                    metrics.compute(&buffer[range]);
                     metrics
                 })
             })
@@ -53,6 +51,7 @@ fn main() {
 
         let mut metrics = Metrics::new();
         metrics.extend(handles.into_iter().map(|handle| handle.join().unwrap()));
+
         metrics
     });
 
@@ -60,21 +59,26 @@ fn main() {
     metrics.render(writer).unwrap();
 }
 
-fn chunk_ranges(buffer: &[u8], chunks: usize) -> Vec<Range<usize>> {
+fn chunks(buffer: &[u8], count: usize) -> Vec<Range<usize>> {
     if buffer.is_empty() {
         return Vec::new();
     }
 
-    if chunks <= 1 {
+    if count <= 1 {
         return vec![0..buffer.len()];
     }
 
-    let mut boundaries = Vec::with_capacity(chunks + 1);
+    let mut boundaries = Vec::with_capacity(count + 1);
+
     boundaries.push(0);
 
-    for index in 1..chunks {
-        let target = index * buffer.len() / chunks;
-        let boundary = next_record_boundary(buffer, target);
+    for index in 1..count {
+        let target = index * buffer.len() / count;
+        let boundary = buffer[target..]
+            .iter()
+            .position(|byte| *byte == NEWLINE)
+            .map(|relative| target + relative + 1)
+            .unwrap_or(buffer.len());
 
         if boundary > *boundaries.last().unwrap() && boundary < buffer.len() {
             boundaries.push(boundary);
@@ -83,7 +87,7 @@ fn chunk_ranges(buffer: &[u8], chunks: usize) -> Vec<Range<usize>> {
 
     boundaries.push(buffer.len());
 
-    boundaries
+    let ranges = boundaries
         .windows(2)
         .filter_map(|window| {
             let start = window[0];
@@ -91,19 +95,9 @@ fn chunk_ranges(buffer: &[u8], chunks: usize) -> Vec<Range<usize>> {
 
             (start < end).then_some(start..end)
         })
-        .collect()
-}
+        .collect();
 
-fn next_record_boundary(buffer: &[u8], offset: usize) -> usize {
-    if offset == 0 {
-        return 0;
-    }
-
-    buffer[offset..]
-        .iter()
-        .position(|byte| *byte == NEWLINE)
-        .map(|relative| offset + relative + 1)
-        .unwrap_or(buffer.len())
+    ranges
 }
 
 #[cfg(test)]
@@ -114,7 +108,7 @@ mod tests {
     fn chunk_ranges_align_records() {
         let buffer = b"alpha;1.0\nbeta;2.0\ngamma;3.0\ndelta;4.0\n";
 
-        let ranges = chunk_ranges(buffer, 3);
+        let ranges = chunks(buffer, 3);
 
         assert!(!ranges.is_empty());
         assert_eq!(ranges.first().unwrap().start, 0);
@@ -130,7 +124,7 @@ mod tests {
     fn chunk_ranges_skip_empty_slices() {
         let buffer = b"alpha;1.0\nbeta;2.0\n";
 
-        let ranges = chunk_ranges(buffer, 16);
+        let ranges = chunks(buffer, 16);
 
         assert_eq!(ranges, vec![0..10, 10..19]);
     }

@@ -40,10 +40,6 @@ impl Mmap {
         }
     }
 
-    pub fn len(&self) -> libc::size_t {
-        self.len
-    }
-
     pub fn as_slice(&self) -> &[u8] {
         unsafe { slice::from_raw_parts(self.ptr as *const u8, self.len) }
     }

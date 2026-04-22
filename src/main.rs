@@ -5,6 +5,7 @@ use libc;
 use std::env::{args, current_dir};
 use std::fs::File;
 use std::io;
+use std::mem;
 use std::ops::Range;
 use std::os::fd::AsRawFd;
 use std::thread;
@@ -57,6 +58,8 @@ fn main() {
 
     let writer = io::BufWriter::new(io::stdout().lock());
     metrics.render(writer).unwrap();
+
+    mem::forget(mmap);
 }
 
 fn chunks(buffer: &[u8], count: usize) -> Vec<Range<usize>> {

@@ -1,3 +1,4 @@
+use hashbrown::DefaultHashBuilder;
 use hashbrown::{HashMap, hash_map::Entry};
 use std::collections::BTreeMap;
 use std::hint;
@@ -58,7 +59,7 @@ impl Extend<Aggregate> for Aggregate {
     }
 }
 
-type MetricsInner<'a> = HashMap<&'a [u8], Aggregate>;
+type MetricsInner<'a> = HashMap<&'a [u8], Aggregate, DefaultHashBuilder>;
 
 pub struct Metrics<'a> {
     inner: MetricsInner<'a>,
@@ -67,7 +68,7 @@ pub struct Metrics<'a> {
 impl<'a> Metrics<'a> {
     pub fn new() -> Self {
         Self {
-            inner: MetricsInner::with_capacity(512),
+            inner: MetricsInner::with_capacity_and_hasher(512, DefaultHashBuilder::default()),
         }
     }
 

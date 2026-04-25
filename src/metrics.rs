@@ -1,7 +1,5 @@
-use hashbrown::hash_map::RawEntryMut;
 use hashbrown::{HashMap, hash_map::Entry};
 use std::collections::BTreeMap;
-use std::hash::BuildHasher;
 use std::hint;
 use std::io;
 use std::io::Write;
@@ -74,24 +72,13 @@ impl<'a> Metrics<'a> {
     }
 
     #[inline]
-    fn hash(&self, station: &'a [u8]) -> u64 {
-        self.inner.hasher().hash_one(station)
-    }
-
-    #[inline]
-    fn insert(&mut self, station: &'a [u8], temperature: i16) {
-        let hash = self.hash(station);
-
-        match self
-            .inner
-            .raw_entry_mut()
-            .from_key_hashed_nocheck(hash, station)
-        {
-            RawEntryMut::Occupied(mut some) => {
+    fn insert_temperature(&mut self, station: &'a [u8], temperature: i16) {
+        match self.inner.entry(station) {
+            Entry::Occupied(mut some) => {
                 some.get_mut().update(temperature);
             }
-            RawEntryMut::Vacant(none) => {
-                none.insert(station, Aggregate::new(temperature));
+            Entry::Vacant(none) => {
+                none.insert(Aggregate::new(temperature));
             }
         };
     }
@@ -124,7 +111,7 @@ impl<'a> Metrics<'a> {
                     let temperature =
                         parse_temperature(&slice[semicolon_cursor + 1..absolute_index]);
 
-                    self.insert(station, temperature);
+                    self.insert_temperature(station, temperature);
 
                     line_start_cursor = absolute_index + 1;
                     maybe_semicolon_cursor = None;
@@ -147,7 +134,7 @@ impl<'a> Metrics<'a> {
                     let station = &slice[line_start_cursor..semicolon_cursor];
                     let temperature = parse_temperature(&slice[semicolon_cursor + 1..cursor]);
 
-                    self.insert(station, temperature);
+                    self.insert_temperature(station, temperature);
 
                     line_start_cursor = cursor + 1;
                     maybe_semicolon_cursor = None;
@@ -160,15 +147,17 @@ impl<'a> Metrics<'a> {
     }
 
     pub fn render(self, mut writer: impl Write) -> io::Result<()> {
-        let mut stations = BTreeMap::from_iter(self.inner.into_iter())
-            .into_iter()
-            .peekable();
+        let mut stations = BTreeMap::from_iter(
+            self.inner
+                .into_iter()
+                .map(|(key, val)| (unsafe { str::from_utf8_unchecked(key) }, val)),
+        )
+        .into_iter()
+        .peekable();
 
         write!(&mut writer, "{{")?;
 
         while let Some((station, aggregate)) = stations.next() {
-            let station = unsafe { str::from_utf8_unchecked(station) };
-
             let min = aggregate.min as f64 / 10.0;
             let avg =
                 (2 * aggregate.sum + aggregate.count).div_euclid(2 * aggregate.count) as f64 / 10.0;

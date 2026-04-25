@@ -173,6 +173,8 @@ impl<'a> Metrics<'a> {
             .into_iter()
             .peekable();
 
+        write!(&mut writer, "{{")?;
+
         while let Some((station, (min, avg, max))) = stations.next() {
             write!(&mut writer, "{}={:.1}/{:.1}/{:.1}", station, min, avg, max)?;
 

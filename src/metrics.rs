@@ -72,7 +72,7 @@ impl<'a> Metrics<'a> {
     }
 
     #[inline]
-    fn insert_temperature(&mut self, station: &'a [u8], temperature: i16) {
+    fn insert_temperature(&mut self, station: &'a [u8], temperature: Temperature) {
         match self.inner.entry(station) {
             Entry::Occupied(mut some) => {
                 some.get_mut().update(temperature);

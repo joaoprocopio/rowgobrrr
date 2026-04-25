@@ -22,4 +22,5 @@ strip = "none"
 lto = "off"
 
 [dependencies]
+hashbrown = "0.17.0"
 libc = "0.2.185"

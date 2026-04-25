@@ -1,5 +1,5 @@
-use std::collections::hash_map::Entry;
-use std::collections::{BTreeMap, HashMap};
+use hashbrown::{HashMap, hash_map::Entry};
+use std::collections::BTreeMap;
 use std::hint;
 use std::io;
 use std::io::Write;

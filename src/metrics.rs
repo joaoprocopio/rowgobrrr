@@ -1,6 +1,7 @@
-use hashbrown::DefaultHashBuilder;
+use hashbrown::hash_map::RawEntryMut;
 use hashbrown::{HashMap, hash_map::Entry};
 use std::collections::BTreeMap;
+use std::hash::BuildHasher;
 use std::hint;
 use std::io;
 use std::io::Write;
@@ -9,11 +10,11 @@ use std::simd::cmp::SimdPartialEq;
 pub const NEWLINE: u8 = b'\n';
 pub const SEMICOLON: u8 = b';';
 
-pub const SIMD_LANES: usize = 32;
-pub type SIMD = std::simd::Simd<u8, SIMD_LANES>;
+pub const SIMD32_LANES: usize = 32;
+pub type SIMD32 = std::simd::Simd<u8, SIMD32_LANES>;
 
-pub const SEMICOLON_SIMD: SIMD = SIMD::splat(SEMICOLON);
-pub const NEWLINE_SIMD: SIMD = SIMD::splat(NEWLINE);
+pub const SEMICOLON_32_SIMD: SIMD32 = SIMD32::splat(SEMICOLON);
+pub const NEWLINE_32_SIMD: SIMD32 = SIMD32::splat(NEWLINE);
 
 pub type Temperature = i16;
 pub type TemperatureCount = i64;
@@ -37,8 +38,8 @@ impl Aggregate {
     }
 
     pub fn update(&mut self, temperature: Temperature) {
-        self.min = self.min.min(temperature);
         self.max = self.max.max(temperature);
+        self.min = self.min.min(temperature);
         self.sum += temperature as TemperatureCount;
         self.count += 1;
     }
@@ -52,14 +53,14 @@ impl Extend<Aggregate> for Aggregate {
     }
 
     fn extend_one(&mut self, item: Aggregate) {
-        self.min = self.min.min(item.min);
         self.max = self.max.max(item.max);
+        self.min = self.min.min(item.min);
         self.sum += item.sum;
         self.count += item.count;
     }
 }
 
-type MetricsInner<'a> = HashMap<&'a [u8], Aggregate, DefaultHashBuilder>;
+type MetricsInner<'a> = HashMap<&'a [u8], Aggregate>;
 
 pub struct Metrics<'a> {
     inner: MetricsInner<'a>,
@@ -68,8 +69,31 @@ pub struct Metrics<'a> {
 impl<'a> Metrics<'a> {
     pub fn new() -> Self {
         Self {
-            inner: MetricsInner::with_capacity_and_hasher(512, DefaultHashBuilder::default()),
+            inner: MetricsInner::with_capacity(10_000),
         }
+    }
+
+    #[inline]
+    fn hash(&self, station: &'a [u8]) -> u64 {
+        self.inner.hasher().hash_one(station)
+    }
+
+    #[inline]
+    fn insert(&mut self, station: &'a [u8], temperature: i16) {
+        let hash = self.hash(station);
+
+        match self
+            .inner
+            .raw_entry_mut()
+            .from_key_hashed_nocheck(hash, station)
+        {
+            RawEntryMut::Occupied(mut some) => {
+                some.get_mut().update(temperature);
+            }
+            RawEntryMut::Vacant(none) => {
+                none.insert(station, Aggregate::new(temperature));
+            }
+        };
     }
 
     pub fn compute(&mut self, slice: &'a [u8]) {
@@ -77,11 +101,11 @@ impl<'a> Metrics<'a> {
         let mut line_start_cursor = 0;
         let mut maybe_semicolon_cursor = None;
 
-        while cursor + SIMD_LANES < slice.len() {
-            let chunk = SIMD::from_slice(&slice[cursor..cursor + SIMD_LANES]);
+        while cursor + SIMD32_LANES < slice.len() {
+            let chunk = SIMD32::from_slice(&slice[cursor..cursor + SIMD32_LANES]);
 
-            let semicolon_bitmask = chunk.simd_eq(SEMICOLON_SIMD).to_bitmask();
-            let newline_bitmask = chunk.simd_eq(NEWLINE_SIMD).to_bitmask();
+            let semicolon_bitmask = chunk.simd_eq(SEMICOLON_32_SIMD).to_bitmask();
+            let newline_bitmask = chunk.simd_eq(NEWLINE_32_SIMD).to_bitmask();
 
             let mut bitmask = semicolon_bitmask | newline_bitmask;
 
@@ -100,14 +124,7 @@ impl<'a> Metrics<'a> {
                     let temperature =
                         parse_temperature(&slice[semicolon_cursor + 1..absolute_index]);
 
-                    match self.inner.entry(station) {
-                        Entry::Occupied(mut some) => {
-                            some.get_mut().update(temperature);
-                        }
-                        Entry::Vacant(none) => {
-                            none.insert(Aggregate::new(temperature));
-                        }
-                    }
+                    self.insert(station, temperature);
 
                     line_start_cursor = absolute_index + 1;
                     maybe_semicolon_cursor = None;
@@ -116,7 +133,7 @@ impl<'a> Metrics<'a> {
                 bitmask &= bitmask - 1;
             }
 
-            cursor += SIMD_LANES;
+            cursor += SIMD32_LANES;
         }
 
         while cursor < slice.len() {
@@ -130,14 +147,7 @@ impl<'a> Metrics<'a> {
                     let station = &slice[line_start_cursor..semicolon_cursor];
                     let temperature = parse_temperature(&slice[semicolon_cursor + 1..cursor]);
 
-                    match self.inner.entry(station) {
-                        Entry::Occupied(mut some) => {
-                            some.get_mut().update(temperature);
-                        }
-                        Entry::Vacant(none) => {
-                            none.insert(Aggregate::new(temperature));
-                        }
-                    }
+                    self.insert(station, temperature);
 
                     line_start_cursor = cursor + 1;
                     maybe_semicolon_cursor = None;

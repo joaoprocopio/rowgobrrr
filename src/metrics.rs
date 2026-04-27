@@ -61,19 +61,19 @@ impl Extend<Aggregate> for Aggregate {
 type MetricsInner<'a> = HashMap<&'a [u8], Aggregate>;
 
 pub struct Metrics<'a> {
-    inner: MetricsInner<'a>,
+    table: MetricsInner<'a>,
 }
 
 impl<'a> Metrics<'a> {
     pub fn new() -> Self {
         Self {
-            inner: MetricsInner::with_capacity(10_000),
+            table: MetricsInner::with_capacity(10_000),
         }
     }
 
     #[inline]
     fn insert_temperature(&mut self, key: &'a [u8], value: Temperature) {
-        match self.inner.entry(key) {
+        match self.table.entry(key) {
             Entry::Occupied(mut some) => {
                 some.get_mut().update(value);
             }
@@ -85,7 +85,7 @@ impl<'a> Metrics<'a> {
 
     #[inline]
     fn insert_aggregate(&mut self, key: &'a [u8], value: Aggregate) {
-        match self.inner.entry(key) {
+        match self.table.entry(key) {
             Entry::Occupied(mut some) => {
                 some.get_mut().extend_one(value);
             }
@@ -160,7 +160,7 @@ impl<'a> Metrics<'a> {
 
     pub fn render(self, mut writer: impl Write) -> io::Result<()> {
         let mut stations =
-            BTreeMap::from_iter(self.inner.into_iter().map(|(station, aggregate)| {
+            BTreeMap::from_iter(self.table.into_iter().map(|(station, aggregate)| {
                 let station = unsafe { str::from_utf8_unchecked(station) };
                 let min = aggregate.min as f64 / 10.0;
                 let avg = (2 * aggregate.sum + aggregate.count).div_euclid(2 * aggregate.count)
@@ -199,7 +199,7 @@ impl<'a> Extend<Metrics<'a>> for Metrics<'a> {
     }
 
     fn extend_one(&mut self, item: Metrics<'a>) {
-        for (station, aggregate) in item.inner {
+        for (station, aggregate) in item.table {
             self.insert_aggregate(station, aggregate);
         }
     }

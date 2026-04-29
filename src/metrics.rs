@@ -4,7 +4,6 @@ use std::collections::hash_map::{Entry, HashMap};
 use std::hint;
 use std::io;
 use std::io::Write;
-use std::ops::Div;
 use std::simd::cmp::SimdPartialEq;
 
 pub const capacity: usize = 2 << 16;
@@ -180,7 +179,6 @@ trait Insert<K, T> {
 }
 
 impl<'a> Insert<&'a [u8], Temperature> for Metrics<'a> {
-    #[inline]
     fn insert(&mut self, key: &'a [u8], value: Temperature) {
         match self.table.entry(key) {
             Entry::Occupied(mut some) => {
@@ -194,7 +192,6 @@ impl<'a> Insert<&'a [u8], Temperature> for Metrics<'a> {
 }
 
 impl<'a> Insert<&'a [u8], Aggregate> for Metrics<'a> {
-    #[inline]
     fn insert(&mut self, key: &'a [u8], value: Aggregate) {
         match self.table.entry(key) {
             Entry::Occupied(mut some) => {
@@ -221,7 +218,6 @@ impl<'a> Extend<Metrics<'a>> for Metrics<'a> {
     }
 }
 
-#[inline]
 fn parse_temperature(slice: &[u8]) -> Temperature {
     let len = slice.len();
 

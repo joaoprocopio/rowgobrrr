@@ -7,19 +7,19 @@ edition = "2024"
 opt-level = 3
 codegen-units = 1
 debug = false
-strip = "symbols"
+strip = true
 debug-assertions = false
 overflow-checks = false
-lto = false
+lto = true
 panic = "abort"
 incremental = false
 rpath = false
 
 [profile.profiling]
 inherits = "release"
-debug = "full"
-strip = "none"
-lto = "off"
+debug = true
+strip = false
+lto = false
 
 [dependencies]
 gxhash = "3.5.0"

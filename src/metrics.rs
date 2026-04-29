@@ -4,6 +4,7 @@ use std::collections::hash_map::{Entry, HashMap};
 use std::hint;
 use std::io;
 use std::io::Write;
+use std::ops::Div;
 use std::simd::cmp::SimdPartialEq;
 
 pub const capacity: usize = 2 << 16;
@@ -148,9 +149,7 @@ impl<'a> Metrics<'a> {
             BTreeMap::from_iter(self.table.into_iter().map(|(station, aggregate)| {
                 let station = unsafe { str::from_utf8_unchecked(station) };
                 let min = aggregate.min as f64 / 10.0;
-                let avg = (2 * aggregate.sum + aggregate.count).div_euclid(2 * aggregate.count)
-                    as f64
-                    / 10.0;
+                let avg = (aggregate.sum as f64 / aggregate.count as f64).round() / 10.0;
                 let max = aggregate.max as f64 / 10.0;
 
                 (station, (min, avg, max))

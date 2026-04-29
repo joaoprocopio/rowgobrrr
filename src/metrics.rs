@@ -1,6 +1,6 @@
+use gxhash::GxBuildHasher;
 use std::collections::btree_map::BTreeMap;
 use std::collections::hash_map::{Entry, HashMap};
-use std::hash::RandomState;
 use std::hint;
 use std::io;
 use std::io::Write;
@@ -60,7 +60,7 @@ impl Extend<Aggregate> for Aggregate {
 }
 
 pub struct Metrics<'a> {
-    table: HashMap<&'a [u8], Aggregate, RandomState>,
+    table: HashMap<&'a [u8], Aggregate, GxBuildHasher>,
 }
 
 impl<'a> Metrics<'a> {

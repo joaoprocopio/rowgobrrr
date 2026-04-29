@@ -22,4 +22,5 @@ strip = "none"
 lto = "off"
 
 [dependencies]
+gxhash = "3.5.0"
 libc = "0.2.185"

@@ -69,18 +69,18 @@ impl Extend<Aggregate> for Aggregate {
     }
 }
 
-pub struct Metrics<'a> {
-    table: HashMap<&'a [u8], Aggregate, GxBuildHasher>,
+pub struct Metrics {
+    table: HashMap<Vec<u8>, Aggregate, GxBuildHasher>,
 }
 
-impl<'a> Metrics<'a> {
+impl Metrics {
     pub fn new() -> Self {
         Self {
             table: HashMap::with_capacity_and_hasher(capacity, Default::default()),
         }
     }
 
-    pub fn compute(&mut self, slice: &'a [u8]) {
+    pub fn compute<'a>(&mut self, slice: &'a [u8]) {
         let mut cursor = 0;
         let mut line_start_cursor = 0;
         let mut maybe_semicolon_cursor = None;
@@ -104,11 +104,11 @@ impl<'a> Metrics<'a> {
                         .take()
                         .expect("newline must be before semicolon");
 
-                    let station = &slice[line_start_cursor..semicolon_cursor];
+                    let station = slice[line_start_cursor..semicolon_cursor].to_vec();
                     let temperature =
                         parse_temperature(&slice[semicolon_cursor + 1..absolute_index]);
 
-                    self.insert(station, temperature);
+                    self.upsert(station, temperature);
 
                     line_start_cursor = absolute_index + 1;
                     maybe_semicolon_cursor = None;
@@ -128,10 +128,10 @@ impl<'a> Metrics<'a> {
                         .take()
                         .expect("newline must be before semicolon");
 
-                    let station = &slice[line_start_cursor..semicolon_cursor];
+                    let station = slice[line_start_cursor..semicolon_cursor].to_vec();
                     let temperature = parse_temperature(&slice[semicolon_cursor + 1..cursor]);
 
-                    self.insert(station, temperature);
+                    self.upsert(station, temperature);
 
                     line_start_cursor = cursor + 1;
                     maybe_semicolon_cursor = None;
@@ -146,7 +146,7 @@ impl<'a> Metrics<'a> {
     pub fn render(self, mut writer: impl Write) -> io::Result<()> {
         let mut stations =
             BTreeMap::from_iter(self.table.into_iter().map(|(station, aggregate)| {
-                let station = unsafe { str::from_utf8_unchecked(station) };
+                let station = unsafe { String::from_utf8_unchecked(station) };
                 let min = aggregate.min as f64 / 10.0;
                 let avg = (aggregate.sum as f64 / aggregate.count as f64).round() / 10.0;
                 let max = aggregate.max as f64 / 10.0;
@@ -174,12 +174,12 @@ impl<'a> Metrics<'a> {
     }
 }
 
-trait Insert<K, T> {
-    fn insert(&mut self, key: K, value: T);
+trait Upsert<K, T> {
+    fn upsert(&mut self, key: K, value: T);
 }
 
-impl<'a> Insert<&'a [u8], Temperature> for Metrics<'a> {
-    fn insert(&mut self, key: &'a [u8], value: Temperature) {
+impl Upsert<Vec<u8>, Temperature> for Metrics {
+    fn upsert(&mut self, key: Vec<u8>, value: Temperature) {
         match self.table.entry(key) {
             Entry::Occupied(mut some) => {
                 some.get_mut().update(value);
@@ -191,8 +191,8 @@ impl<'a> Insert<&'a [u8], Temperature> for Metrics<'a> {
     }
 }
 
-impl<'a> Insert<&'a [u8], Aggregate> for Metrics<'a> {
-    fn insert(&mut self, key: &'a [u8], value: Aggregate) {
+impl Upsert<Vec<u8>, Aggregate> for Metrics {
+    fn upsert(&mut self, key: Vec<u8>, value: Aggregate) {
         match self.table.entry(key) {
             Entry::Occupied(mut some) => {
                 some.get_mut().extend_one(value);
@@ -204,16 +204,16 @@ impl<'a> Insert<&'a [u8], Aggregate> for Metrics<'a> {
     }
 }
 
-impl<'a> Extend<Metrics<'a>> for Metrics<'a> {
-    fn extend<T: IntoIterator<Item = Metrics<'a>>>(&mut self, iter: T) {
+impl Extend<Metrics> for Metrics {
+    fn extend<T: IntoIterator<Item = Metrics>>(&mut self, iter: T) {
         for item in iter {
             self.extend_one(item);
         }
     }
 
-    fn extend_one(&mut self, item: Metrics<'a>) {
+    fn extend_one(&mut self, item: Metrics) {
         for (station, aggregate) in item.table.into_iter() {
-            self.insert(station, aggregate);
+            self.upsert(station, aggregate);
         }
     }
 }

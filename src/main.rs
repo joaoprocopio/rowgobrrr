@@ -28,7 +28,7 @@ fn main() {
     )
     .unwrap();
 
-    mmap.advise(libc::MADV_SEQUENTIAL).unwrap();
+    mmap.advise(libc::MADV_RANDOM).unwrap();
     mmap.advise(libc::MADV_HUGEPAGE).unwrap();
     mmap.advise(libc::MADV_WILLNEED).unwrap();
 

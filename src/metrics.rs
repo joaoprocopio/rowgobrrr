@@ -6,6 +6,8 @@ use std::io;
 use std::io::Write;
 use std::simd::cmp::SimdPartialEq;
 
+pub const capacity: usize = 2 << 17;
+
 pub const newl: u8 = b'\n';
 pub const semi: u8 = b';';
 
@@ -37,10 +39,14 @@ impl Aggregate {
     }
 
     pub fn update(&mut self, temperature: Temperature) {
-        self.max = self.max.max(temperature);
-        self.min = -(-self.min).max(-temperature);
         self.sum += temperature as TemperatureCount;
         self.count += 1;
+        if temperature > self.max {
+            self.max = temperature
+        }
+        if temperature < self.min {
+            self.min = temperature
+        }
     }
 }
 
@@ -52,10 +58,14 @@ impl Extend<Aggregate> for Aggregate {
     }
 
     fn extend_one(&mut self, item: Aggregate) {
-        self.max = self.max.max(item.max);
-        self.min = -(-self.min).max(-item.min);
         self.sum += item.sum;
         self.count += item.count;
+        if item.max > self.max {
+            self.max = item.max
+        }
+        if item.min < self.min {
+            self.min = item.min
+        }
     }
 }
 
@@ -66,7 +76,7 @@ pub struct Metrics<'a> {
 impl<'a> Metrics<'a> {
     pub fn new() -> Self {
         Self {
-            table: HashMap::with_hasher(Default::default()),
+            table: HashMap::with_capacity_and_hasher(capacity, Default::default()),
         }
     }
 

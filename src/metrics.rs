@@ -6,7 +6,7 @@ use std::io;
 use std::io::Write;
 use std::simd::cmp::SimdPartialEq;
 
-pub const capacity: usize = 2 << 17;
+pub const capacity: usize = 2 << 16;
 
 pub const newl: u8 = b'\n';
 pub const semi: u8 = b';';

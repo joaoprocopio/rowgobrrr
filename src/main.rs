@@ -22,7 +22,7 @@ fn main() {
     let mmap = Mmap::new(
         file.metadata().unwrap().len() as usize,
         libc::PROT_READ,
-        libc::MAP_PRIVATE,
+        libc::MAP_SHARED,
         file.as_raw_fd(),
         0,
     )

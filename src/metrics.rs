@@ -1,5 +1,5 @@
-use crate::table::Table;
-use std::collections::BTreeMap;
+use std::collections::btree_map::BTreeMap;
+use std::collections::hash_map::{Entry, HashMap};
 use std::hash::RandomState;
 use std::hint;
 use std::io;
@@ -60,33 +60,13 @@ impl Extend<Aggregate> for Aggregate {
 }
 
 pub struct Metrics<'a> {
-    table: Table<&'a [u8], Aggregate, RandomState>,
+    table: HashMap<&'a [u8], Aggregate, RandomState>,
 }
 
 impl<'a> Metrics<'a> {
     pub fn new() -> Self {
         Self {
-            table: Table::with_hasher(RandomState::default()),
-        }
-    }
-
-    #[inline]
-    fn insert_temperature(&mut self, key: &'a [u8], value: Temperature) {
-        match self.table.get_mut(key) {
-            Some(agg) => {
-                agg.update(value);
-            }
-            None => self.table.insert(key, Aggregate::new(value)),
-        }
-    }
-
-    #[inline]
-    fn insert_aggregate(&mut self, key: &'a [u8], value: Aggregate) {
-        match self.table.get_mut(key) {
-            Some(agg) => {
-                agg.extend_one(value);
-            }
-            None => self.table.insert(key, value),
+            table: HashMap::with_hasher(Default::default()),
         }
     }
 
@@ -118,7 +98,7 @@ impl<'a> Metrics<'a> {
                     let temperature =
                         parse_temperature(&slice[semicolon_cursor + 1..absolute_index]);
 
-                    self.insert_temperature(station, temperature);
+                    self.insert(station, temperature);
 
                     line_start_cursor = absolute_index + 1;
                     maybe_semicolon_cursor = None;
@@ -141,7 +121,7 @@ impl<'a> Metrics<'a> {
                     let station = &slice[line_start_cursor..semicolon_cursor];
                     let temperature = parse_temperature(&slice[semicolon_cursor + 1..cursor]);
 
-                    self.insert_temperature(station, temperature);
+                    self.insert(station, temperature);
 
                     line_start_cursor = cursor + 1;
                     maybe_semicolon_cursor = None;
@@ -154,18 +134,19 @@ impl<'a> Metrics<'a> {
     }
 
     pub fn render(self, mut writer: impl Write) -> io::Result<()> {
-        let mut stations = BTreeMap::from_iter(self.table.into_iter().filter_map(|entry| {
-            let (station, aggregate) = entry?;
-            let station = unsafe { str::from_utf8_unchecked(station) };
-            let min = aggregate.min as f64 / 10.0;
-            let avg =
-                (2 * aggregate.sum + aggregate.count).div_euclid(2 * aggregate.count) as f64 / 10.0;
-            let max = aggregate.max as f64 / 10.0;
+        let mut stations =
+            BTreeMap::from_iter(self.table.into_iter().map(|(station, aggregate)| {
+                let station = unsafe { str::from_utf8_unchecked(station) };
+                let min = aggregate.min as f64 / 10.0;
+                let avg = (2 * aggregate.sum + aggregate.count).div_euclid(2 * aggregate.count)
+                    as f64
+                    / 10.0;
+                let max = aggregate.max as f64 / 10.0;
 
-            Some((station, (min, avg, max)))
-        }))
-        .into_iter()
-        .peekable();
+                (station, (min, avg, max))
+            }))
+            .into_iter()
+            .peekable();
 
         write!(&mut writer, "{{")?;
 
@@ -185,6 +166,10 @@ impl<'a> Metrics<'a> {
     }
 }
 
+trait Insert<K, T> {
+    fn insert(&mut self, key: K, value: T);
+}
+
 impl<'a> Extend<Metrics<'a>> for Metrics<'a> {
     fn extend<T: IntoIterator<Item = Metrics<'a>>>(&mut self, iter: T) {
         for item in iter {
@@ -193,13 +178,36 @@ impl<'a> Extend<Metrics<'a>> for Metrics<'a> {
     }
 
     fn extend_one(&mut self, item: Metrics<'a>) {
-        for elem in item.table.into_iter() {
-            match elem {
-                Some((station, aggregate)) => {
-                    self.insert_aggregate(station, aggregate);
-                }
-                None => (),
-            };
+        for (station, aggregate) in item.table.into_iter() {
+            self.insert(station, aggregate);
+        }
+    }
+}
+
+impl<'a> Insert<&'a [u8], Temperature> for Metrics<'a> {
+    #[inline]
+    fn insert(&mut self, key: &'a [u8], value: Temperature) {
+        match self.table.entry(key) {
+            Entry::Occupied(mut some) => {
+                some.get_mut().update(value);
+            }
+            Entry::Vacant(none) => {
+                none.insert(Aggregate::new(value));
+            }
+        }
+    }
+}
+
+impl<'a> Insert<&'a [u8], Aggregate> for Metrics<'a> {
+    #[inline]
+    fn insert(&mut self, key: &'a [u8], value: Aggregate) {
+        match self.table.entry(key) {
+            Entry::Occupied(mut some) => {
+                some.get_mut().extend_one(value);
+            }
+            Entry::Vacant(none) => {
+                none.insert(value);
+            }
         }
     }
 }

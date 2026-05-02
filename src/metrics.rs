@@ -68,18 +68,18 @@ impl Extend<Aggregate> for Aggregate {
     }
 }
 
-pub struct Metrics {
-    table: HashMap<String, Aggregate, GxBuildHasher>,
+pub struct Metrics<'a> {
+    table: HashMap<&'a [u8], Aggregate, GxBuildHasher>,
 }
 
-impl Metrics {
+impl<'a> Metrics<'a> {
     pub fn new() -> Self {
         Self {
             table: HashMap::with_capacity_and_hasher(capacity, Default::default()),
         }
     }
 
-    pub fn compute(&mut self, slice: &[u8]) {
+    pub fn compute(&mut self, slice: &'a [u8]) {
         let mut cursor = 0;
         let mut line_start_cursor = 0;
         let mut maybe_semicolon_cursor = None;
@@ -103,11 +103,7 @@ impl Metrics {
                         .take()
                         .expect("newline must be before semicolon");
 
-                    let station = unsafe {
-                        String::from_utf8_unchecked(
-                            slice[line_start_cursor..semicolon_cursor].to_vec(),
-                        )
-                    };
+                    let station = &slice[line_start_cursor..semicolon_cursor];
                     let temperature =
                         parse_temperature(&slice[semicolon_cursor + 1..absolute_index]);
 
@@ -131,11 +127,7 @@ impl Metrics {
                         .take()
                         .expect("newline must be before semicolon");
 
-                    let station = unsafe {
-                        String::from_utf8_unchecked(
-                            slice[line_start_cursor..semicolon_cursor].to_vec(),
-                        )
-                    };
+                    let station = &slice[line_start_cursor..semicolon_cursor];
                     let temperature = parse_temperature(&slice[semicolon_cursor + 1..cursor]);
 
                     self.upsert(station, temperature);
@@ -160,6 +152,7 @@ impl Metrics {
         while let Some(station) = stations.next() {
             let aggregate = &self.table[station];
 
+            let station = unsafe { str::from_utf8_unchecked(station) };
             let min = aggregate.min as f64 / 10.0;
             let avg = (aggregate.sum as f64 / aggregate.count as f64).round() / 10.0;
             let max = aggregate.max as f64 / 10.0;
@@ -183,8 +176,8 @@ trait Upsert<K, T> {
     fn upsert(&mut self, key: K, value: T);
 }
 
-impl Upsert<String, Temperature> for Metrics {
-    fn upsert(&mut self, key: String, value: Temperature) {
+impl<'a> Upsert<&'a [u8], Temperature> for Metrics<'a> {
+    fn upsert(&mut self, key: &'a [u8], value: Temperature) {
         match self.table.entry(key) {
             Entry::Occupied(mut some) => {
                 some.get_mut().update(value);
@@ -196,8 +189,8 @@ impl Upsert<String, Temperature> for Metrics {
     }
 }
 
-impl Upsert<String, Aggregate> for Metrics {
-    fn upsert(&mut self, key: String, value: Aggregate) {
+impl<'a> Upsert<&'a [u8], Aggregate> for Metrics<'a> {
+    fn upsert(&mut self, key: &'a [u8], value: Aggregate) {
         match self.table.entry(key) {
             Entry::Occupied(mut some) => {
                 some.get_mut().extend_one(value);
@@ -209,21 +202,21 @@ impl Upsert<String, Aggregate> for Metrics {
     }
 }
 
-impl Extend<Metrics> for Metrics {
-    fn extend<T: IntoIterator<Item = Metrics>>(&mut self, iter: T) {
+impl<'a> Extend<Metrics<'a>> for Metrics<'a> {
+    fn extend<T: IntoIterator<Item = Metrics<'a>>>(&mut self, iter: T) {
         for item in iter {
             self.extend_one(item);
         }
     }
 
-    fn extend_one(&mut self, item: Metrics) {
+    fn extend_one(&mut self, item: Metrics<'a>) {
         for (station, aggregate) in item.table.into_iter() {
             self.upsert(station, aggregate);
         }
     }
 }
 
-fn parse_temperature(slice: &[u8]) -> Temperature {
+fn parse_temperature<'a>(slice: &'a [u8]) -> Temperature {
     let len = slice.len();
 
     unsafe { hint::assert_unchecked(len >= 3) };
@@ -260,7 +253,7 @@ mod tests {
         let expected = fs::read(&assert_path).unwrap();
 
         let mut metrics = Metrics::new();
-        metrics.compute(&input);
+        metrics.compute(input.as_slice());
 
         let mut result = Vec::new();
         metrics.render(&mut result).unwrap();

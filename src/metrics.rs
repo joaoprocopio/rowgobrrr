@@ -5,7 +5,7 @@ use std::io;
 use std::io::Write;
 use std::simd::cmp::SimdPartialEq;
 
-pub const capacity: usize = 2 << 16;
+pub const capacity: usize = 2 << 14;
 
 pub const newl: u8 = b'\n';
 pub const semi: u8 = b';';
@@ -240,10 +240,11 @@ fn parse_temperature<'a>(slice: &'a [u8]) -> Temperature {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{fs, path::PathBuf};
+    use std::fs;
+    use std::path;
 
     fn measure(filename: &str) {
-        let input_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        let input_path = path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("1brc/src/test/resources/samples")
             .join(filename);
 
